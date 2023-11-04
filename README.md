@@ -7,3 +7,4 @@ This was orginally part of my master thesis writen under supervision of doc. hab
 # TO DO
 1. mayor refactoring is in order.
 2. There is a bug were sometimes max gamma is returned smaller then it should be due to incorrect way of choosing bracket points for zbrent.
+3. Shwo some plots of the solutions here.
