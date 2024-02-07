@@ -79,27 +79,27 @@ double tryplet_uifunt(double x,double Tc,double mi,double gamma0,double tp)
       return uifunt;
 }
 
-double tryplet_gap(double Tc,double mi,double gamma0,double xk[],double ak[],int n,int k,double Vt,double tp)
+double tryplet_gap(double Tc,double mi,double gamma0,int n,int k,double Vt,double tp)
 {
     const double pi=asin(1.0)*2.0;
     double temp;
 
-    temp=sc_integrate1D_gl_parallel(tryplet_uifunt,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp);
+    temp=sc_integrate1D_gl_gpu(tryplet_uifunt,0.0,pi,n,k,Tc,mi,gamma0,tp);
     temp=1.0-Vt/(2.0*pi)*(temp);
     return temp;
 
 }
 
-double* tryplet_get_res(double Vt,double nl,double tp,double gamma0,double xt,double yt,double xc,double yc,double xk[],double ak[],int n,int k)
+double* tryplet_get_res(double Vt,double nl,double tp,double gamma0,double xt,double yt,double xc,double yc,int n,int k)
 {
     double t,ch,chp,tol=0.000000001;
     double* res;
-  res=sc_solve1D_zbr(tryplet_gap,xt,yt,tol,gamma0,xk,ak,n,k,Vt,xc,yc,nl,tp);
+  res=sc_solve1D_zbr(tryplet_gap,xt,yt,tol,gamma0,n,k,Vt,xc,yc,nl,tp);
 
     /*cout<<"t tryplet ch "<<chp<<" t "<<t<<endl;
-    t=sc_solve1D_zbr(tryplet_gap,xt,yt,tol,0.0,gamma0,xk,ak,n,k,Vt);
+    t=sc_solve1D_zbr(tryplet_gap,xt,yt,tol,0.0,gamma0,n,k,Vt);
     cout<<"ch tryplet ch "<<chp<<" t "<<t<<endl;
-    ch=sc_solve1D_zbr(sc_occ,xc,yc,tol,t,gamma0,xk,ak,n,k,nl);
+    ch=sc_solve1D_zbr(sc_occ,xc,yc,tol,t,gamma0,n,k,nl);
 
     chp=0.0;
 
@@ -107,9 +107,9 @@ double* tryplet_get_res(double Vt,double nl,double tp,double gamma0,double xt,do
     {
         chp=ch;
         cout<<"t tryplet ch "<<chp<<" t "<<t<<endl;
-        t=sc_solve1D_zbr(tryplet_gap,xt,yt,tol,chp,gamma0,xk,ak,n,k,Vt);
+        t=sc_solve1D_zbr(tryplet_gap,xt,yt,tol,chp,gamma0,n,k,Vt);
         cout<<"ch tryplet ch "<<chp<<" t "<<t<<endl;
-        ch=sc_solve1D_zbr(sc_occ,xc,yc,tol,t,gamma0,xk,ak,n,k,nl);
+        ch=sc_solve1D_zbr(sc_occ,xc,yc,tol,t,gamma0,n,k,nl);
     }
 
         res[0]=t;

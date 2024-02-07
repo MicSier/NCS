@@ -1,0 +1,4 @@
+# Ignore exec file
+./miesz.exe
+# Ignore ltbb directory
+./oneTBB/

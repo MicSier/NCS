@@ -1,4 +1,4 @@
 # Makefile
 
 main:
-	g++ -std=c++2a code/*.cpp -o miesz -O3 -ltbb
+	nvcc code/*.cpp code/*.cu -o miesz -O3 

@@ -1,5 +1,4 @@
 #include <iostream>
-#include "plotting.h"
 #include "numericalmethods.h"
 #include "singlet.h"
 #include "tryplet.h"
@@ -10,11 +9,184 @@
 
 const double pi=3.141592653597932384;
 string dn[] = {"coupled+s","coupled+t","univ+s","phase+","coupled+nodless+s","coupled+nodal+s","coupled+nodless+t","coupled+nodal+t","fs","nodes","univ+t","dos","simplification+gap","simplification+delta","simplification+ratio"};
-double xk[]={0.9061798459386641,-0.9061798459386641,0.538469310105683,-0.5384693101056829,0.0};
-double ak[]={0.2369268850561876,0.2369268850561876,0.47862867049936647,0.47862867049936586,0.5688888888888889};
 double delta=0.0000000001;
-int n=5000, k=5;
+int n=1000, k=5;
 
+
+string path(string name,int n)
+{
+  string so="rashba";
+    switch(n)
+    {
+        case 0:
+        return "\"./data/"+so+"/tc/"+name+".dat\"";
+
+        case 1:
+        return "./data/"+so+"/tc/"+name+".dat";
+
+        case 2:
+        return "\"./data/"+so+"/phase/"+name+".dat\"";
+
+        case 3:
+        return "./data/"+so+"/phase/"+name+".dat";
+
+        case 4:
+        return "\"./data/"+so+"/uni/"+name+".dat\"";
+
+        case 5:
+        return "./data/"+so+"/uni/"+name+".dat";
+
+        case 6:
+        return "\"./data/"+so+"/dos/"+name+".dat\"";
+
+        case 7:
+        return "./data/"+so+"/dos/"+name+".dat";
+
+        case 8:
+        return "\"./plots/"+so+"/tc/"+name+".png\"";
+
+        case 9:
+        return "\"./plots/"+so+"/phase/"+name+".eps\"";
+
+        case 10:
+        return "\"./plots/"+so+"/uni/"+name+".png\"";
+
+        case 11:
+        return "\"./plots/"+so+"/dos/"+name+".eps\"";
+
+        default:
+        return "";
+    }
+}
+
+void coupled_universality_tabulate1D(string fname_singlet1,string fname_singlet2,string fname_tryplet1,string fname_tryplet2, string fname)
+{
+    fstream infile_s1(path(fname_singlet1,1));
+    fstream infile_s2(path(fname_singlet2,1));
+    fstream infile_t1(path(fname_tryplet1,1));
+    fstream infile_t2(path(fname_tryplet2,1));
+
+    fstream outfile(path(fname,5),fstream::out);
+
+
+    string word;
+    double g0_s[400],dtpds[400],g0_t[400],dspdt[400];
+    double t_s[400],t_t[400];
+    double mi_s[400],mi_t[400];
+    int i=0,j=0,minindi,minindj,m,k;
+    double minv,temp;
+
+    while(infile_s1.good() && i<400)
+    {
+        infile_s1>>word;
+        g0_s[i]=stod(word);
+        infile_s1>>word;
+        t_s[i]=stod(word);
+        infile_s1>>word;
+        mi_s[i]=stod(word);
+        infile_s1>>word;
+        dtpds[i]=stod(word);
+        if(infile_s1.good()) i++;
+    }
+
+    while(infile_s2.good() && i<400)
+    {
+        infile_s2>>word;
+        g0_s[i]=stod(word);
+        infile_s2>>word;
+        t_s[i]=stod(word);
+        infile_s2>>word;
+        mi_s[i]=stod(word);
+        infile_s2>>word;
+        dtpds[i]=stod(word);
+        if(infile_s2.good()) i++;
+    }
+
+    while(infile_t1.good() && j<400)
+    {
+        infile_t1>>word;
+        g0_t[j]=stod(word);
+        infile_t1>>word;
+        t_t[j]=stod(word);
+        infile_t1>>word;
+        mi_t[j]=stod(word);
+        infile_t1>>word;
+        dspdt[j]=stod(word);
+       if(infile_t1.good()) j++;
+    }
+
+    while(infile_t2.good() && j<400)
+    {
+        infile_t2>>word;
+        g0_t[j]=stod(word);
+        infile_t2>>word;
+        t_t[j]=stod(word);
+        infile_t2>>word;
+        mi_t[j]=stod(word);
+        infile_t2>>word;
+        dspdt[j]=stod(word);
+       if(infile_t2.good()) j++;
+    }
+
+    minindi=0;
+    minindj=0;
+    minv=abs(dspdt[minindj]*dtpds[minindi]-1.0);
+
+  /*  for(k=0;k<=i;k++)
+    {*/
+        for(m=1;m<j;m++)
+        {
+            temp=abs(dspdt[m]*dtpds[m]-1.0);
+            if(temp<minv)
+            {
+                minindi=m;
+                minindj=m;
+                minv=temp;
+            }
+
+        }
+  //  }
+
+    double gammacrit=g0_t[i-1];
+    cout<<i<<" "<<j<<" "<<minindi<<" "<<minindj<<endl;
+    cout<<"gc  "<<gammacrit<<"  "<<g0_s[minindi]<<"  "<<g0_t[minindj]<<" "<<endl;
+    for(k=0;k<i;k++)
+    {
+        outfile<<setprecision(10)<<g0_s[k]/gammacrit<<" "<<setprecision(10)<<pow(dspdt[k],2.0)+4*pow(mi_t[k],2.0)<<" "<<setprecision(10)<<pow(1.0/dtpds[k],2.0)+4*pow(mi_t[k],2.0)<<" "<<endl;//setprecision(10)<<t_s[k]/t_s[0]<<" "<<setprecision(10)<<t_t[k]/t_t[0]<<" "<<setprecision(10)<<mi_s[k]/mi_s[0]<<" "<<setprecision(10)<<mi_t[k]/mi_t[0]<<endl;
+        //outfile<<setprecision(10)<<g0_s[k]/gammacrit<<" "<<setprecision(10)<<dspdt[k]<<" "<<setprecision(10)<<dtpds[k]<<" "<<endl;//setprecision(10)<<t_s[k]/t_s[0]<<" "<<setprecision(10)<<t_t[k]/t_t[0]<<" "<<setprecision(10)<<mi_s[k]/mi_s[0]<<" "<<setprecision(10)<<mi_t[k]/mi_t[0]<<endl;
+    }
+
+
+}
+
+void sc_tabulate1D(string fname,double* (*f)(double,double,double,double,double,double,double,double,int,int),double a, double b, int N,double Vs,double tp,double nl,double xt,double yt,double xc,double yc,int n,int k)
+{
+    fstream outfile(fname,fstream::out);
+    double g0=a;
+    double h=(b-a)/(N-1);
+    double* tmp;
+
+    if(!outfile.good())
+    {
+        cout<<"nie otwarty plik!"<<endl;
+    }
+
+    while(h>0.0001)
+    {
+        g0=g0+h;
+        tmp=f(Vs,nl,tp,g0,xt,yt,xc,yc,n,k);
+        if(tmp[0]==0.0)
+        {
+            g0=g0-h;
+            h=h/2.0;
+        }
+        else
+        {
+            outfile<<setprecision(10)<<g0<<" "<<setprecision(10)<<tmp[0]<<" "<<setprecision(10)<<tmp[1]<<endl;
+        }
+
+    }
+  }
 string tname (double Vs,double Vt,double nl,double tp)
 {
     auto y = [] (double x)
@@ -97,10 +269,10 @@ void check_univ(double nl,double ilr,double tp)
         fstream osn(path(dn[4]+tname(Vs,Vt,nl,tp),1),fstream::out);
         fstream otn(path(dn[5]+tname(Vs,Vt,nl,tp),1),fstream::out);
 
-        tabs=singlet_get_res(Vs,nl,tp,g,xt,yt,xc,yc,xk,ak,n,k);
+        tabs=singlet_get_res(Vs,nl,tp,g,xt,yt,xc,yc,n,k);
         pts=tabs[0];
         pchs=tabs[1];
-        tabt=tryplet_get_res(Vt,nl,tp,g,xt,yt,xc,yc,xk,ak,n,k);
+        tabt=tryplet_get_res(Vt,nl,tp,g,xt,yt,xc,yc,n,k);
         ptt=tabt[0];
         pcht=tabt[1];
         counter=0;
@@ -108,7 +280,7 @@ void check_univ(double nl,double ilr,double tp)
         while(h>0.0000001)
         {
             g+=h;
-            tab=coupled_get_res_both(Vs,Vt,nl,tp,g,xc,yc,xk,ak,n,k,pts,ptt,pchs,pcht);
+            tab=coupled_get_res_both(Vs,Vt,nl,tp,g,xc,yc,n,k,pts,ptt,pchs,pcht);
             if(counter==10)
             {
                 //h=h*10;
@@ -137,14 +309,14 @@ void check_univ(double nl,double ilr,double tp)
 
 
         }
-        plot_tc(tname(Vs,Vt,nl,tp),dn[0]+tname(Vs,Vt,nl,tp),dn[1]+tname(Vs,Vt,nl,tp),dn[4]+tname(Vs,Vt,nl,tp),dn[5]+tname(Vs,Vt,nl,tp));
+        //plot_tc(tname(Vs,Vt,nl,tp),dn[0]+tname(Vs,Vt,nl,tp),dn[1]+tname(Vs,Vt,nl,tp),dn[4]+tname(Vs,Vt,nl,tp),dn[5]+tname(Vs,Vt,nl,tp));
         names[i]=dn[2]+tname(Vs,Vt,nl,tp);
         coupled_universality_tabulate1D(dn[0]+tname(Vs,Vt,nl,tp),dn[4]+tname(Vs,Vt,nl,tp),dn[1]+tname(Vs,Vt,nl,tp),dn[5]+tname(Vs,Vt,nl,tp),names[i] );
 
     }
 
-    plot_univ(dn[2]+"+dtpds"+uname(ilr,nl,tp),names[0],names[1],names[2],3);
-    plot_univ(dn[6]+"+dspdt"+uname(ilr,nl,tp),names[0],names[1],names[2],2);
+   // plot_univ(dn[2]+"+dtpds"+uname(ilr,nl,tp),names[0],names[1],names[2],3);
+   // plot_univ(dn[6]+"+dspdt"+uname(ilr,nl,tp),names[0],names[1],names[2],2);
     //plot_univ(dn[2]+"+Tc"+uname(ilr,nl,tp),names[0],names[1],names[2],4);
     //plot_univ(dn[6]+"+Tc"+uname(ilr,nl,tp),names[0],names[1],names[2],5);
 
@@ -175,10 +347,10 @@ void check_simplification(double nl,double Vs,double Vt,double tp)
         fstream sr(path(dn[10]+tname(Vs,Vt,nl,tp),1),fstream::out);*/
         fstream sc(path(dn[8]+tname(Vs,Vt,nl,tp)+"+cal+",1));
 
-        tabs=singlet_get_res(Vs,nl,tp,g,xt,yt,xc,yc,xk,ak,n,k);
+        tabs=singlet_get_res(Vs,nl,tp,g,xt,yt,xc,yc,n,k);
         pts=tabs[0];
         pchs=tabs[1];
-        tabt=tryplet_get_res(Vt,nl,tp,g,xt,yt,xc,yc,xk,ak,n,k);
+        tabt=tryplet_get_res(Vt,nl,tp,g,xt,yt,xc,yc,n,k);
         ptt=tabt[0];
         pcht=tabt[1];
         counter=0;
@@ -190,8 +362,8 @@ void check_simplification(double nl,double Vs,double Vt,double tp)
         while(h>0.0000001 && g<=0.2)
         {
             g+=h;
-            tab1=coupled_get_res_both(Vs,Vt,nl,tp,g,xc,yc,xk,ak,n,k,pts,ptt,pchs,pcht);
-            //tab1=coupled_get_res_both_simplified(Vs,Vt,nl,tp,g,xc,yc,xk,ak,n,k,ptss,ptts,pchss,pchts);
+            tab1=coupled_get_res_both(Vs,Vt,nl,tp,g,xc,yc,n,k,pts,ptt,pchs,pcht);
+            //tab1=coupled_get_res_both_simplified(Vs,Vt,nl,tp,g,xc,yc,n,k,ptss,ptts,pchss,pchts);
 
             if(counter==10)
             {
@@ -209,12 +381,12 @@ void check_simplification(double nl,double Vs,double Vt,double tp)
 
               /*  os<<std::setprecision(12)<<g<<" "<<std::setprecision(12)<<tab1[0]<<" "<<std::setprecision(12)<<tab1[1]<<" "<<std::setprecision(12)<<tab1[2]<<endl;
                 ot<<std::setprecision(12)<<g<<" "<<std::setprecision(12)<<tab1[3]<<" "<<std::setprecision(12)<<tab1[4]<<" "<<std::setprecision(12)<<tab1[5]<<endl;
-              */  sgap=coupled_simplified_gap(tab1[0],tab1[1],g,xk,ak,n,k,Vs,Vt,tp);
-                tgap=coupled_simplified_gap(tab1[3],tab1[4],g,xk,ak,n,k,Vs,Vt,tp);
+              */  sgap=coupled_simplified_gap(tab1[0],tab1[1],g,n,k,Vs,Vt,tp);
+                tgap=coupled_simplified_gap(tab1[3],tab1[4],g,n,k,Vs,Vt,tp);
                 sgs<<std::setprecision(12)<<g<<" "<<std::setprecision(12)<<sgap[0]<<" "<<std::setprecision(12)<<sgap[1]<<" "<<std::setprecision(12)<<sgap[2]<<" "<<std::setprecision(12)<<sgap[3]<<" "<<std::setprecision(12)<<sgap[4]<<" "<<std::setprecision(12)<<sgap[5]<<endl;
                 sgt<<std::setprecision(12)<<g<<" "<<std::setprecision(12)<<tgap[0]<<" "<<std::setprecision(12)<<tgap[1]<<" "<<std::setprecision(12)<<tgap[2]<<" "<<std::setprecision(12)<<tgap[3]<<" "<<std::setprecision(12)<<tgap[4]<<" "<<std::setprecision(12)<<tgap[5]<<endl;
-              /*  sd<<std::setprecision(12)<<g<<" "<<std::setprecision(12)<<tab1[2]<<" "<<std::setprecision(12)<<coupled_simplified_deltas(tab1[0],tab1[1],g,xk,ak,n,k,Vs,Vt,tp)<<" "<<std::setprecision(12)<<tab1[5]<<" "<<std::setprecision(12)<<coupled_simplified_deltat(tab1[3],tab1[4],g,xk,ak,n,k,Vs,Vt,tp)<<endl;
-                sr<<std::setprecision(12)<<g<<" "<<std::setprecision(12)<<tab1[2]*tab1[5]<<" "<<std::setprecision(12)<<coupled_simplified_ratio(tab1[0], tab1[1], tab1[3], tab1[4],g,xk,ak,n,k, Vs, Vt, tp)<<endl;
+              /*  sd<<std::setprecision(12)<<g<<" "<<std::setprecision(12)<<tab1[2]<<" "<<std::setprecision(12)<<coupled_simplified_deltas(tab1[0],tab1[1],g,n,k,Vs,Vt,tp)<<" "<<std::setprecision(12)<<tab1[5]<<" "<<std::setprecision(12)<<coupled_simplified_deltat(tab1[3],tab1[4],g,n,k,Vs,Vt,tp)<<endl;
+                sr<<std::setprecision(12)<<g<<" "<<std::setprecision(12)<<tab1[2]*tab1[5]<<" "<<std::setprecision(12)<<coupled_simplified_ratio(tab1[0], tab1[1], tab1[3], tab1[4],g,n,k, Vs, Vt, tp)<<endl;
               */  pts=tab1[0];
                 ptt=tab1[3];
                 pchs=tab1[1];
@@ -225,12 +397,13 @@ void check_simplification(double nl,double Vs,double Vt,double tp)
                 pchts=tab1[4];*/
                 double fpd2s,fpd2t,fps,fpt,fmds,fmdt,ratio;
 
-                fps=sc_integrate1D_gl_parallel(coupled_fp,0.0,pi,n,k,xk,ak,tab1[0],tab1[1],g,tp)/(pi);
-                fpt=sc_integrate1D_gl_parallel(coupled_fp,0.0,pi,n,k,xk,ak,tab1[3],tab1[4],g,tp)/(pi);
-                fmds=sc_integrate1D_gl_parallel(coupled_fmdk,0.0,pi,n,k,xk,ak,tab1[0],tab1[1],g,tp)/(pi);
-                fmdt=sc_integrate1D_gl_parallel(coupled_fmdk,0.0,pi,n,k,xk,ak,tab1[3],tab1[4],g,tp)/(pi);
-                fpd2s=sc_integrate1D_gl_parallel(coupled_fpdk2,0.0,pi,n,k,xk,ak,tab1[0],tab1[1],g,tp)/(pi);
-                fpd2t=sc_integrate1D_gl_parallel(coupled_fpdk2,0.0,pi,n,k,xk,ak,tab1[3],tab1[4],g,tp)/(pi);
+                /*fps=sc_integrate1D_gl_parallel(coupled_fp,0.0,pi,n,k,tab1[0],tab1[1],g,tp)/(pi);
+                fpt=sc_integrate1D_gl_parallel(coupled_fp,0.0,pi,n,k,tab1[3],tab1[4],g,tp)/(pi);
+                fmds=sc_integrate1D_gl_parallel(coupled_fmdk,0.0,pi,n,k,tab1[0],tab1[1],g,tp)/(pi);
+                fmdt=sc_integrate1D_gl_parallel(coupled_fmdk,0.0,pi,n,k,tab1[3],tab1[4],g,tp)/(pi);
+                fpd2s=sc_integrate1D_gl_parallel(coupled_fpdk2,0.0,pi,n,k,tab1[0],tab1[1],g,tp)/(pi);
+                fpd2t=sc_integrate1D_gl_parallel(coupled_fpdk2,0.0,pi,n,k,tab1[3],tab1[4],g,tp)/(pi);
+                */
                 //cout<<std::setprecision(12)<<g<<" "<<fps<<" "<<std::setprecision(12)<<fpt<<" "<<std::setprecision(12)<<fmds<<" "<<std::setprecision(12)<<fmdt<<" "<<std::setprecision(12)<<fpd2s<<" "<<std::setprecision(12)<<fpd2t<<endl;
                 if(g==0.2)
                 sc<<std::setprecision(12)<<Vs<<" "<<fps<<" "<<std::setprecision(12)<<fpt<<" "<<std::setprecision(12)<<fmds<<" "<<std::setprecision(12)<<fmdt<<" "<<std::setprecision(12)<<fpd2s<<" "<<std::setprecision(12)<<fpd2t<<endl;
@@ -239,7 +412,7 @@ void check_simplification(double nl,double Vs,double Vt,double tp)
 
 
         }
-        plot_tc(tname(Vs,Vt,nl,tp),dn[0]+tname(Vs,Vt,nl,tp),dn[1]+tname(Vs,Vt,nl,tp),dn[8]+tname(Vs,Vt,nl,tp),dn[9]+tname(Vs,Vt,nl,tp));
+        //plot_tc(tname(Vs,Vt,nl,tp),dn[0]+tname(Vs,Vt,nl,tp),dn[1]+tname(Vs,Vt,nl,tp),dn[8]+tname(Vs,Vt,nl,tp),dn[9]+tname(Vs,Vt,nl,tp));
 }
 
 void univ_just_plot(double nl,double ilr,double tp)
@@ -267,8 +440,8 @@ void univ_just_plot(double nl,double ilr,double tp)
       }
       names[i]=dn[2]+tname(Vs,Vt,nl,tp);
     }
-  plot_univ(dn[2]+"+dtpds"+uname(ilr,nl,tp),names[0],names[1],names[2],3);
-  plot_univ(dn[6]+"+dspdt"+uname(ilr,nl,tp),names[0],names[1],names[2],2);
+  //plot_univ(dn[2]+"+dtpds"+uname(ilr,nl,tp),names[0],names[1],names[2],3);
+ // plot_univ(dn[6]+"+dspdt"+uname(ilr,nl,tp),names[0],names[1],names[2],2);
 }
 
 void get_phase_diagram(double nl,double ilr,double tp,int np,double vmax,bool singlet)
@@ -345,10 +518,10 @@ void get_phase_diagram(double nl,double ilr,double tp,int np,double vmax,bool si
         fstream onodest(path(dn[9]+"t"+tname(Vs,Vt,nl,tp),1),fstream::out);
 
 
-        tabs=singlet_get_res(Vs,nl,tp,g,xt,yt,xc,yc,xk,ak,n,k);
+        tabs=singlet_get_res(Vs,nl,tp,g,xt,yt,xc,yc,n,k);
         pts=tabs[0];
         pchs=tabs[1];
-        tabt=tryplet_get_res(Vt,nl,tp,g,xt,yt,xc,yc,xk,ak,n,k);
+        tabt=tryplet_get_res(Vt,nl,tp,g,xt,yt,xc,yc,n,k);
         ptt=max(tabt[0],1e-8);
         pcht=tabt[1];
         free(tabs);
@@ -381,7 +554,7 @@ void get_phase_diagram(double nl,double ilr,double tp,int np,double vmax,bool si
         {
 
             g+=h;
-            tab=coupled_get_res_both(Vs,Vt,nl,tp,g,xc,yc,xk,ak,n,k,pts,ptt,pchs,pcht);
+            tab=coupled_get_res_both(Vs,Vt,nl,tp,g,xc,yc,n,k,pts,ptt,pchs,pcht);
 
             if(abs(tab[5]-tab[1])<=0.0000001 || tab[1]<=0.0 || tab[5]<=0.0)
             {
@@ -417,7 +590,7 @@ void get_phase_diagram(double nl,double ilr,double tp,int np,double vmax,bool si
 
               /*  if(eqfs*eqfsp<0.0 && !ffs)
                 {
-                    gfs=coupled_gamma0_solve1D_zbr(eq_gamma0_fs,g-h,g,delta,Vs,Vt,nl,tp,xc,yc,xk,ak,n,k,pts,ptt,pchs,pcht,true);
+                    gfs=coupled_gamma0_solve1D_zbr(eq_gamma0_fs,g-h,g,delta,Vs,Vt,nl,tp,xc,yc,n,k,pts,ptt,pchs,pcht,true);
                     ffs=true;
                   //  onodals<<std::setprecision(12)<<gfs[0]<<" "<<std::setprecision(12)<<gfs[2]<<" "<<std::setprecision(12)<<<<" "<<std::setprecision(12)<<gfs[3]<<endl;
                   //  onodlesss<<std::setprecision(12)<<gfs[0]<<" "<<std::setprecision(12)<<gfs[2]<<" "<<std::setprecision(12)<<<<" "<<std::setprecision(12)<<gfs[3]<<endl;
@@ -426,7 +599,7 @@ void get_phase_diagram(double nl,double ilr,double tp,int np,double vmax,bool si
                 }*/
                 if(eqbs*eqbsp<0.0)
                 {
-                  /*  gbs=coupled_gamma0_solve1D_zbr(eq_gamma0_bz,g-h,g,eqbsp,eqbs,delta,Vs,Vt,nl,tp,xc,yc,xk,ak,n,k,pts,ptt,pchs,pcht,true);
+                  /*  gbs=coupled_gamma0_solve1D_zbr(eq_gamma0_bz,g-h,g,eqbsp,eqbs,delta,Vs,Vt,nl,tp,xc,yc,n,k,pts,ptt,pchs,pcht,true);
                     fbs=true;
                     //phas<<ilr<<"  "<<setprecision(12)<<gbs[0]<<endl;
                     onodals<<std::setprecision(12)<<gbs[0]<<" "<<std::setprecision(12)<<gbs[2]<<" "<<std::setprecision(12)<<" "<<std::setprecision(12)<<gbs[3]<<" "<<std::setprecision(12)<<gbs[4]<<endl;
@@ -442,19 +615,19 @@ void get_phase_diagram(double nl,double ilr,double tp,int np,double vmax,bool si
                     for(int i=0;i<100;i++)
                     {
                       g1=g-h+gh*i;
-                      phas<<ilr<<"  "<<g1<<"  "<<setprecision(12)<<eq_gamma0_bz(g1,Vs,Vt,nl,tp,xc,yc,xk,ak,n,k,pts,ptt,pchs,pcht,true)[1]<<endl;
+                      phas<<ilr<<"  "<<g1<<"  "<<setprecision(12)<<eq_gamma0_bz(g1,Vs,Vt,nl,tp,xc,yc,n,k,pts,ptt,pchs,pcht,true)[1]<<endl;
                     }
 
                 }
               /*  if(eqft*eqftp<0.0 && !fft)
                 {
-                    gft=coupled_gamma0_solve1D_zbr(eq_gamma0_fs,g-h,g,delta,Vs,Vt,nl,tp,xc,yc,xk,ak,n,k,pts,ptt,pchs,pcht,false);
+                    gft=coupled_gamma0_solve1D_zbr(eq_gamma0_fs,g-h,g,delta,Vs,Vt,nl,tp,xc,yc,n,k,pts,ptt,pchs,pcht,false);
                     fft=true;
                     //  cout<<"if t"<<endl;
                 }*/
                 if(eqbt*eqbtp<0.0)
                 {
-                    /*gbt=coupled_gamma0_solve1D_zbr(eq_gamma0_bz,g-h,g,eqbtp,eqbt,delta,Vs,Vt,nl,tp,xc,yc,xk,ak,n,k,pts,ptt,pchs,pcht,false);
+                    /*gbt=coupled_gamma0_solve1D_zbr(eq_gamma0_bz,g-h,g,eqbtp,eqbt,delta,Vs,Vt,nl,tp,xc,yc,n,k,pts,ptt,pchs,pcht,false);
                     fbt=true;
                     //phat<<ilr<<"  "<<setprecision(12)<<gbt[0]<<endl;
                     onodalt<<std::setprecision(12)<<gbt[0]<<" "<<std::setprecision(12)<<gbt[2]<<" "<<std::setprecision(12)<<gbt[3]<<" "<<std::setprecision(12)<<gbt[4]<<endl;
@@ -470,7 +643,7 @@ void get_phase_diagram(double nl,double ilr,double tp,int np,double vmax,bool si
                     for(int i=0;i<100;i++)
                     {
                       g1=g-h+gh*i;
-                      phat<<ilr<<"  "<<g1<<"  "<<setprecision(12)<<eq_gamma0_bz(g1,Vs,Vt,nl,tp,xc,yc,xk,ak,n,k,pts,ptt,pchs,pcht,false)[1]<<endl;
+                      phat<<ilr<<"  "<<g1<<"  "<<setprecision(12)<<eq_gamma0_bz(g1,Vs,Vt,nl,tp,xc,yc,n,k,pts,ptt,pchs,pcht,false)[1]<<endl;
                     }
 
                 }
@@ -572,21 +745,31 @@ void phase_just_plot(double nl,double ilr,double tp,int np,double vmax)
   string pha_names,pha_namet;
   pha_names=dn[3]+pname(nl,tp,vmax)+"s";
   pha_namet=dn[3]+pname(nl,tp,vmax)+"t";
-  plot_phase(pha_names,pha_names,true);
-  plot_phase(pha_namet,pha_namet,false);
+  //plot_phase(pha_names,pha_names,true);
+ // plot_phase(pha_namet,pha_namet,false);
 }
 
+double f(double x,double y,double z,double a,double b)
+{
+    return x+y+z+a+b;
+}
+
+__device__ Under_Integral_Func singlet_uifunt_ = singlet_uifunt;
+__device__ Under_Integral_Func sc_uifunc_ = sc_uifunc;
 int main()
 {
-  double xt=0.000000001,yt=10.0,xc=-5.0,yc=5.0;
+  double xt=0.000000001,yt=10.0,xc=0.0000001,yc=5.0;
     double tp=0.0,nl=1.5,ilr=0.25,g0=0.01,ch,mi,dmi;
-    string dos_name;
-    double *res1,*res2;
+    string fname= "singlet.txt";
     double ptt,pts,pchs,pcht;
     double* tabs;
     double* tabt;
 
-    get_phase_diagram(1.5,0.25,tp,75,2,true);
-
-    return 0;
+  //  tabs= singlet_get_res(2.0,nl,tp,0.1,xt,yt,xc,yc,n,k);
+  //  sc_tabulate1D(fname,singlet_get_res,xt,1.0,10,2.0, tp, nl, xt, yt, xc, yc, n, k);
+    //get_phase_diagram(1.5,0.25,tp,75,2,true);
+//   (Under_Integral_Func f, double a, double b, int n, int k, double Tc, double mi, double gamma0, double tp)
+    double res= sc_integrate1D_gl_gpu(sc_uifunc_,xt,yt,n,k,1.0,1.0,0.1,0.0); 
+    cout<<"res= "<<res<<endl;
+      return 0;
 }

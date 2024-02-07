@@ -1,22 +1,26 @@
 #include "numericalmethods.h"
-#include "plotting.h"
+#include <iostream>
 #include <chrono>
 #include <numeric>
 #include <vector>
 #include <execution>
 #include "singlet.h"
 
-double occ_solve1D_zbr(double (*f)(double,double,double,double*,double*,int,int,double,double),double a, double b,double tol,double mi,double gamma0,double xk[],double ak[],int n,int k,double Vs,double tp)
+typedef double (*Gap_Func)(double,double,double,int,int,double,double);
+
+#define BLOCK_SIZE 16
+
+double occ_solve1D_zbr(Gap_Func f,double a, double b,double tol,double mi,double gamma0,int n,int k,double Vs,double tp)
 {
     int itmax=100;
     double d,r,s,e,p,q,xm,tol1,c,fa,fb,fc,eps=3.0e-8;
 
-    fa=f(a,mi,gamma0,xk,ak,n,k,Vs,tp);
-    fb=f(b,mi,gamma0,xk,ak,n,k,Vs,tp);
+    fa=f(a,mi,gamma0,n,k,Vs,tp);
+    fb=f(b,mi,gamma0,n,k,Vs,tp);
 
     if(fa*fb>0.0)
     {
-        //cout<<"occ_zbr err:Takie same znaki!  fa  "<<fa<<" fb  "<<fb<<" tc,g0,a,b  "<<mi<<"  "<<gamma0<<"  "<<a<<"  "<<b<<endl;
+        cout<<"occ_zbr err:Takie same znaki!  fa  "<<fa<<" fb  "<<fb<<" tc,g0,a,b  "<<mi<<"  "<<gamma0<<"  "<<a<<"  "<<b<<endl;
         return 0.0;
     }
     c=b;
@@ -83,7 +87,7 @@ double occ_solve1D_zbr(double (*f)(double,double,double,double*,double*,int,int,
             if(xm>0.0) b=b+abs(tol1);
             else b=b-abs(tol1);
         }
-        fb=f(b,mi,gamma0,xk,ak,n,k,Vs,tp);
+        fb=f(b,mi,gamma0,n,k,Vs,tp);
 
 
     }
@@ -91,7 +95,7 @@ double occ_solve1D_zbr(double (*f)(double,double,double,double*,double*,int,int,
     return b;
 }
 
-double* sc_solve1D_zbr(double (*f)(double,double,double,double*,double*,int,int,double,double),double a, double b,double tol,double gamma0,double xk[],double ak[],int n,int k,double Vs,double sxc,double syc,double nl,double tp)
+double* sc_solve1D_zbr(Gap_Func f,double a, double b,double tol,double gamma0,int n,int k,double Vs,double sxc,double syc,double nl,double tp)
 {
     int itmax=100;
     double d,r,s,e,p,q,xm,tol1,c,fa,fb,fc,eps=3.0e-8,mi;
@@ -99,10 +103,10 @@ double* sc_solve1D_zbr(double (*f)(double,double,double,double*,double*,int,int,
 
     res=(double *)malloc(2*sizeof(double));
 
-    mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,a,gamma0,xk,ak,n,k,nl,tp);
-    fa=f(a,mi,gamma0,xk,ak,n,k,Vs,tp);
-     mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,b,gamma0,xk,ak,n,k,nl,tp);
-    fb=f(b,mi,gamma0,xk,ak,n,k,Vs,tp);
+    mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,a,gamma0,n,k,nl,tp);
+    fa=f(a,mi,gamma0,n,k,Vs,tp);
+     mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,b,gamma0,n,k,nl,tp);
+    fb=f(b,mi,gamma0,n,k,Vs,tp);
     res[0]=b;
     res[1]=mi;
 
@@ -177,8 +181,8 @@ double* sc_solve1D_zbr(double (*f)(double,double,double,double*,double*,int,int,
             if(xm>0.0) b=b+abs(tol1);
             else b=b-abs(tol1);
         }
-         mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,b,gamma0,xk,ak,n,k,nl,tp);
-        fb=f(b,mi,gamma0,xk,ak,n,k,Vs,tp);
+         mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,b,gamma0,n,k,nl,tp);
+        fb=f(b,mi,gamma0,n,k,Vs,tp);
         res[0]=b;
         res[1]=mi;
 
@@ -187,15 +191,15 @@ double* sc_solve1D_zbr(double (*f)(double,double,double,double*,double*,int,int,
     return res;
 }
 
-double coupled_solve1D_zbr(double (*f)(double,double,double,double*,double*,int,int,double,double,double),double a, double b,double tol,double gamma0,double xk[],double ak[],int n,int k,double Vs,double Vt,double sxc,double syc,double nl,double tp)
+double coupled_solve1D_zbr(double (*f)(double,double,double,int,int,double,double,double),double a, double b,double tol,double gamma0,int n,int k,double Vs,double Vt,double sxc,double syc,double nl,double tp)
 {
     int itmax=100;
     double mi,d,r,s,e,p,q,xm,tol1,c,fa,fb,fc,eps=3.0e-8;
 
-    mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,a,gamma0,xk,ak,n,k,nl,tp);
-    fa=f(a,mi,gamma0,xk,ak,n,k,Vs,Vt,tp);
-    mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,b,gamma0,xk,ak,n,k,nl,tp);
-    fb=f(b,mi,gamma0,xk,ak,n,k,Vs,Vt,tp);
+    mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,a,gamma0,n,k,nl,tp);
+    fa=f(a,mi,gamma0,n,k,Vs,Vt,tp);
+    mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,b,gamma0,n,k,nl,tp);
+    fb=f(b,mi,gamma0,n,k,Vs,Vt,tp);
 
 
     if(fa*fb>0.0)
@@ -272,22 +276,22 @@ double coupled_solve1D_zbr(double (*f)(double,double,double,double*,double*,int,
             if(xm>0.0) b+=abs(tol1);
             else b+=-abs(tol1);
         }
-        mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,b,gamma0,xk,ak,n,k,nl,tp);
-        fb=f(b,mi,gamma0,xk,ak,n,k,Vs,Vt,tp);
+        mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,b,gamma0,n,k,nl,tp);
+        fb=f(b,mi,gamma0,n,k,Vs,Vt,tp);
 
     }
     cout<<"zbr exeding max iteractions!"<<endl;
     return b;
 }
 
-double* coupled_gamma0_solve1D_zbr(double* (*f)(double,double,double,double,double,double,double,double*,double*,int,int,double,double,double,double,bool),double a, double b,double fgmh,double fg,double tol,double Vs,double Vt,double nl,double tp,double sxc,double syc,double xk[],double ak[],int n,int k,double pts,double ptt,double pchs,double pcht,bool isfromsinglet)
+double* coupled_gamma0_solve1D_zbr(double* (*f)(double,double,double,double,double,double,double,int,int,double,double,double,double,bool),double a, double b,double fgmh,double fg,double tol,double Vs,double Vt,double nl,double tp,double sxc,double syc,int n,int k,double pts,double ptt,double pchs,double pcht,bool isfromsinglet)
 {
     int itmax=100;
     double d,r,s,e,p,q,xm,tol1,c,fa,fb,fc,eps=3.0e-8;
     double* taba,*tabb,*tabc;
-    //taba=f(a,Vs,Vt,nl,tp,sxc,syc,xk,ak,n,k,pts,ptt,pchs,pcht,isfromsinglet);
+    taba=f(a,Vs,Vt,nl,tp,sxc,syc,n,k,pts,ptt,pchs,pcht,isfromsinglet);
     fa=fgmh;
-  //  tabb=f(b,Vs,Vt,nl,tp,sxc,syc,xk,ak,n,k,pts,ptt,pchs,pcht,isfromsinglet);
+    tabb=f(b,Vs,Vt,nl,tp,sxc,syc,n,k,pts,ptt,pchs,pcht,isfromsinglet);
     fb=fg;
 
     if(fa*fb>0.0)
@@ -367,21 +371,21 @@ double* coupled_gamma0_solve1D_zbr(double* (*f)(double,double,double,double,doub
             if(xm>0.0) b+=abs(tol1);
             else b+=-abs(tol1);
         }
-        tabb=f(b,Vs,Vt,nl,tp,sxc,syc,xk,ak,n,k,pts,ptt,pchs,pcht,isfromsinglet);
+        tabb=f(b,Vs,Vt,nl,tp,sxc,syc,n,k,pts,ptt,pchs,pcht,isfromsinglet);
         fb=tabb[1];
     }
     cout<<"zbr exeding max iteractions!"<<endl;
     return tabb;
 }
 
-
-double sc_solve1D_new(double (*f)(double,double,double,double*,double*,int,int,double),double a,double tol,double mi,double gamma0,double xk[],double ak[],int n,int k,double Vs)
+/*
+double sc_solve1D_new(double (*f)(double,double,double,double*,double*,int,int,double),double a,double tol,double mi,double gamma0,int n,int k,double Vs)
 {
     double x,h,dev,vy;
 
-    auto y = [f,mi,gamma0,Vs,xk,ak,n,k] (double t)
+    auto y = [f,mi,gamma0,Vs,n,k] (double t)
     {
-        return f(t,mi,gamma0,xk,ak,n,k,Vs);
+        return f(t,mi,gamma0,n,k,Vs);
     };
 
     auto deriv = [y] (double t,double dt)
@@ -408,14 +412,14 @@ double sc_solve1D_new(double (*f)(double,double,double,double*,double*,int,int,d
 
 }
 
-double coupled_solve1D_new(double (*f)(double,double,double,double*,double*,int,int,double,double),double a,double tol,double mi,double gamma0,double xk[],double ak[],int n,int k,double Vs,double Vt)
+double coupled_solve1D_new(double (*f)(double,double,double,double*,double*,int,int,double,double),double a,double tol,double mi,double gamma0,int n,int k,double Vs,double Vt)
 {
     double x,h,dev,vy;
     int i=0;
 
-    auto y = [f,mi,gamma0,Vs,Vt,xk,ak,n,k] (double t)
+    auto y = [f,mi,gamma0,Vs,Vt,n,k] (double t)
     {
-        return f(t,mi,gamma0,xk,ak,n,k,Vs,Vt);
+        return f(t,mi,gamma0,n,k,Vs,Vt);
     };
 
     auto deriv = [y] (double t,double dt)
@@ -449,13 +453,15 @@ double coupled_solve1D_new(double (*f)(double,double,double,double*,double*,int,
     }
 
 }
+*/
 
-double sc_integrate1D_gl_parallel(double (*f)(double,double,double,double,double),double a, double b, int n, int k,double* xk,double* ak,double Tc,double mi,double gamma0,double tp)
+
+/*double sc_integrate1D_gl_parallel(Under_Integral_Func f,double a, double b, int n, int k,double Tc,double mi,double gamma0,double tp)
 {
   std::vector<double> v(n*k);
    double h=(b-a)/(n);
 
-  auto y = [a,h,xk,ak,f,Tc,mi,gamma0,tp] (int i)
+  auto y = [a,h,f,Tc,mi,gamma0,tp] (int i)
 {
   int j=i%5,m=i/5;
   double z=((2.0*a+h*(2.0*m+1.0))-h*xk[j])*0.5;
@@ -463,11 +469,77 @@ double sc_integrate1D_gl_parallel(double (*f)(double,double,double,double,double
 };
 
   std::iota(v.begin(), v.end(), 0);
-
-  /*std::transform(v.begin(),v.end(),v.begin(),y);
-  const double result = std::reduce(std::execution::par,v.begin(),v.end())*h*0.5;*/
   const double result = std::transform_reduce(std::execution::par,v.begin(), v.end(),0.0,[](auto a, auto b) {return a + b;},y)*h*0.5;
 
   return result;
 
+}*/
+
+
+
+// Define a device function
+__device__ double device_function(double x, double Tc, double mi, double gamma0, double tp) {
+    return x*x;
+}
+
+// Define another device function
+__device__ double another_device_function(double x, double Tc, double mi, double gamma0, double tp) {
+    return std::sin(x);
+}
+
+__global__ void integrateKernel(double* result, Under_Integral_Func* f, double a, double h, int n, double* xk, double* ak, double Tc, double mi, double gamma0, double tp) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (idx < n) {
+        int j = idx % 5;
+        int i = idx / 5;
+        double z = ((2.0*a+h*(2.0*i+1.0))-h*xk[j])*0.5;
+        result[idx] = ak[j]*((*f)(z, Tc, mi, gamma0, tp));
+    }
+}
+__device__ Under_Integral_Func singlet_uifunt_ = singlet_uifunt;
+__device__ Under_Integral_Func sc_uifunc_ = sc_uifunc;
+
+double sc_integrate1D_gl_gpu(Under_Integral_Func f, double a, double b, int n, int k, double Tc, double mi, double gamma0, double tp) {
+    double h = (b - a) / (n);
+   // Host variables
+    double* h_result = new double[n * k];
+
+    // Device variables
+    double* d_result;
+    double* d_xk;
+    double* d_ak;
+    cudaMalloc((void**)&d_result, n * k * sizeof(double));
+    cudaMalloc((void**)&d_xk, k * sizeof(double));
+    cudaMalloc((void**)&d_ak, k * sizeof(double));
+
+    // Copy data to device
+    cudaMemcpy(d_xk, xk, k * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_ak, ak, k * sizeof(double), cudaMemcpyHostToDevice);
+
+    // Launch the kernel
+    int num_blocks = (n*k + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    cudaCallableFunctionPointer<Under_Integral_Func> d_f(&(sc_uifunc_));
+    integrateKernel<<<num_blocks, BLOCK_SIZE>>>(d_result, d_f.ptr, a, h, n*k, d_xk, d_ak, Tc, mi, gamma0, tp);
+
+    cudaError_t cudaStatus = cudaGetLastError();
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "Kernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+        // Handle error
+    }
+    cudaStatus = cudaDeviceSynchronize();
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaDeviceSynchronize failed: %s\n", cudaGetErrorString(cudaStatus));
+        // Handle error
+    }
+    // Copy the result back to host
+    cudaMemcpy(h_result, d_result, n * k * sizeof(double), cudaMemcpyDeviceToHost);
+    
+    double result = accumulate(h_result, h_result + n*k, 0.0) * h * 0.5;
+    // Cleanup
+    cudaFree(d_result);
+    cudaFree(d_xk);
+    cudaFree(d_ak);
+    delete[] h_result;
+    return result;
 }

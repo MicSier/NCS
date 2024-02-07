@@ -61,81 +61,81 @@ double coupled_fpdk2 (double x,double Tc,double mi,double gamma0,double tp)
     return res/2.0*d2(x);
 }
 
-double coupled_gap(double Tc,double mi,double gamma0,double xk[],double ak[],int n,int k,double Vs,double Vt,double tp)
+double coupled_gap(double Tc,double mi,double gamma0,int n,int k,double Vs,double Vt,double tp)
 {
     const double pi=asin(1.0)*2.0;
     double a,b,c,temp;
 
-    a=sc_integrate1D_gl_parallel(coupled_fp,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
-    b=sc_integrate1D_gl_parallel(coupled_fpdk2,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
-    c=sc_integrate1D_gl_parallel(coupled_fmdk,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
+    a=sc_integrate1D_gl_gpu(coupled_fp,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
+    b=sc_integrate1D_gl_gpu(coupled_fpdk2,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
+    c=sc_integrate1D_gl_gpu(coupled_fmdk,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
     temp=(1.0-Vs*a)*(1.0-Vt*b)+Vs*Vt*c*c;
 
     return temp;
 
 }
 
-double coupled_deltas(double Tc,double mi,double gamma0,double xk[],double ak[],int n,int k,double Vs,double tp)
+double coupled_deltas(double Tc,double mi,double gamma0,int n,int k,double Vs,double tp)
 {
     const double pi=asin(1.0)*2.0;
     double a,b,deltaratiots;
 
-    a=sc_integrate1D_gl_parallel(coupled_fp,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
-    b=sc_integrate1D_gl_parallel(coupled_fmdk,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
+    a=sc_integrate1D_gl_gpu(coupled_fp,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
+    b=sc_integrate1D_gl_gpu(coupled_fmdk,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
     deltaratiots=(1.0-Vs*a)/(Vs*b);
 
     return deltaratiots;
 }
 
-double coupled_simplified_deltas(double Tc,double mi,double gamma0,double xk[],double ak[],int n,int k,double Vs,double Vt,double tp)
+double coupled_simplified_deltas(double Tc,double mi,double gamma0,int n,int k,double Vs,double Vt,double tp)
 {
     const double pi=asin(1.0)*2.0;
     double a,b,c,deltaratiots;
 
-    a=sc_integrate1D_gl_parallel(coupled_fpdk2,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
-    b=sc_integrate1D_gl_parallel(coupled_fmdk,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
-    c=sc_integrate1D_gl_parallel(coupled_fp,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
+    a=sc_integrate1D_gl_gpu(coupled_fpdk2,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
+    b=sc_integrate1D_gl_gpu(coupled_fmdk,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
+    c=sc_integrate1D_gl_gpu(coupled_fp,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
     deltaratiots=Vt/Vs*a/b-Vt*c*a/b;
 
     return deltaratiots;
 }
 
-double coupled_deltat(double Tc,double mi,double gamma0,double xk[],double ak[],int n,int k,double Vt,double tp)
+double coupled_deltat(double Tc,double mi,double gamma0,int n,int k,double Vt,double tp)
 {
     const double pi=asin(1.0)*2.0;
     double a,b,deltaratiost;
 
-    a=sc_integrate1D_gl_parallel(coupled_fpdk2,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
-    b=sc_integrate1D_gl_parallel(coupled_fmdk,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
+    a=sc_integrate1D_gl_gpu(coupled_fpdk2,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
+    b=sc_integrate1D_gl_gpu(coupled_fmdk,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
     deltaratiost=-(1.0-Vt*a)/(Vt*b);
 
     return deltaratiost;
 }
 
-double coupled_simplified_deltat(double Tc,double mi,double gamma0,double xk[],double ak[],int n,int k,double Vs,double Vt,double tp)
+double coupled_simplified_deltat(double Tc,double mi,double gamma0,int n,int k,double Vs,double Vt,double tp)
 {
     const double pi=asin(1.0)*2.0;
     double a,b,c,deltaratiost;
 
-    a=sc_integrate1D_gl_parallel(coupled_fp,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
-    b=sc_integrate1D_gl_parallel(coupled_fmdk,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
-    c=sc_integrate1D_gl_parallel(coupled_fpdk2,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
+    a=sc_integrate1D_gl_gpu(coupled_fp,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
+    b=sc_integrate1D_gl_gpu(coupled_fmdk,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
+    c=sc_integrate1D_gl_gpu(coupled_fpdk2,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
     deltaratiost=Vs/Vt*a/b-Vs*a*c/b;
 
     return deltaratiost;
 }
 
-double coupled_simplified_ratio(double Tcs,double mis,double Tct,double mit,double gamma0,double xk[],double ak[],int n,int k,double Vs,double Vt,double tp)
+double coupled_simplified_ratio(double Tcs,double mis,double Tct,double mit,double gamma0,int n,int k,double Vs,double Vt,double tp)
 {
     const double pi=asin(1.0)*2.0;
     double fpd2s,fpd2t,fps,fpt,fmds,fmdt,ratio;
 
-    fps=sc_integrate1D_gl_parallel(coupled_fp,0.0,pi,n,k,xk,ak,Tcs,mis,gamma0,tp)/(pi);
-    fpt=sc_integrate1D_gl_parallel(coupled_fp,0.0,pi,n,k,xk,ak,Tct,mit,gamma0,tp)/(pi);
-    fmds=sc_integrate1D_gl_parallel(coupled_fmdk,0.0,pi,n,k,xk,ak,Tcs,mis,gamma0,tp)/(pi);
-    fmdt=sc_integrate1D_gl_parallel(coupled_fmdk,0.0,pi,n,k,xk,ak,Tct,mit,gamma0,tp)/(pi);
-    fpd2s=sc_integrate1D_gl_parallel(coupled_fpdk2,0.0,pi,n,k,xk,ak,Tcs,mis,gamma0,tp)/(pi);
-    fpd2t=sc_integrate1D_gl_parallel(coupled_fpdk2,0.0,pi,n,k,xk,ak,Tct,mit,gamma0,tp)/(pi);
+    fps=sc_integrate1D_gl_gpu(coupled_fp,0.0,pi,n,k,Tcs,mis,gamma0,tp)/(pi);
+    fpt=sc_integrate1D_gl_gpu(coupled_fp,0.0,pi,n,k,Tct,mit,gamma0,tp)/(pi);
+    fmds=sc_integrate1D_gl_gpu(coupled_fmdk,0.0,pi,n,k,Tcs,mis,gamma0,tp)/(pi);
+    fmdt=sc_integrate1D_gl_gpu(coupled_fmdk,0.0,pi,n,k,Tct,mit,gamma0,tp)/(pi);
+    fpd2s=sc_integrate1D_gl_gpu(coupled_fpdk2,0.0,pi,n,k,Tcs,mis,gamma0,tp)/(pi);
+    fpd2t=sc_integrate1D_gl_gpu(coupled_fpdk2,0.0,pi,n,k,Tct,mit,gamma0,tp)/(pi);
 
   //  ratio=(Vt/Vs*fpd2s/fmds-Vt*(fps*fpd2s/fmds+fmds))*(Vs/Vt*fpt/fmdt-Vs*(fpt*fpd2t/fmdt+fmdt));
   //  ratio=fpd2s*fpt/(fmds*fmdt)-Vt*(fpd2s*fpt*fpd2t/(fmds*fmdt)+fpd2s*fmdt/fmds)-Vs*(fps*fpt*fpd2s/(fmds*fmdt)+fpt*fmds/fmdt)+Vs*Vt*(fps*fpd2s/fmds+fmds)*(fpt*fpd2t/fmdt+fmdt);
@@ -144,7 +144,7 @@ double coupled_simplified_ratio(double Tcs,double mis,double Tct,double mit,doub
     return ratio;
 }
 
-double* coupled_get_res(double Vs,double Vt,double nl,double tp,double gamma0,double sxt,double syt,double sxc,double syc,double xk[],double ak[],int n,int k,bool isfromsinglet)
+double* coupled_get_res(double Vs,double Vt,double nl,double tp,double gamma0,double sxt,double syt,double sxc,double syc,int n,int k,bool isfromsinglet)
 {
     double t,ch,chp,tol=0.00001;
     double xt,yt,x,y,at,bt,h;
@@ -163,8 +163,8 @@ double* coupled_get_res(double Vs,double Vt,double nl,double tp,double gamma0,do
 
     res=(double *)malloc(3*sizeof(double));
 
-    res_sin=singlet_get_res(Vs,nl,tp,gamma0,sxt,syt,sxc,syc,xk,ak,n,k);
-    res_try=tryplet_get_res(Vt,nl,tp,gamma0,sxt,syt,sxc,syc,xk,ak,n,k);
+    res_sin=singlet_get_res(Vs,nl,tp,gamma0,sxt,syt,sxc,syc,n,k);
+    res_try=tryplet_get_res(Vt,nl,tp,gamma0,sxt,syt,sxc,syc,n,k);
 
     xt=res_sin[0];
     yt=res_try[0];
@@ -180,14 +180,14 @@ double* coupled_get_res(double Vs,double Vt,double nl,double tp,double gamma0,do
         h=-(yt-xt)/400.0;
     }
 
-     ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,at,gamma0,xk,ak,n,k,nl,tp);
-     x=coupled_gap(at,ch,gamma0,xk,ak,n,k,Vs,Vt,tp);
+     ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,at,gamma0,n,k,nl,tp);
+     x=coupled_gap(at,ch,gamma0,n,k,Vs,Vt,tp);
 
       for(int i=1;i<=400 && flag1==false;i++)
       {
           bt=at+h;
-          ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,bt,gamma0,xk,ak,n,k,nl,tp);
-          y=coupled_gap(bt,ch,gamma0,xk,ak,n,k,Vs,Vt,tp);
+          ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,bt,gamma0,n,k,nl,tp);
+          y=coupled_gap(bt,ch,gamma0,n,k,Vs,Vt,tp);
 
           if(x*y<0)
           {
@@ -209,15 +209,15 @@ double* coupled_get_res(double Vs,double Vt,double nl,double tp,double gamma0,do
           at=bt;
       }
 
-    t=coupled_solve1D_zbr(coupled_gap,xt,yt,tol,gamma0,xk,ak,n,k,Vs,Vt,sxc,syc,nl,tp);
-    ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,t,gamma0,xk,ak,n,k,nl,tp);
+    t=coupled_solve1D_zbr(coupled_gap,xt,yt,tol,gamma0,n,k,Vs,Vt,sxc,syc,nl,tp);
+    ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,t,gamma0,n,k,nl,tp);
     chp=0.0;
 
     while(abs(ch-chp)>tol && t!=0.0 && c<10 && flag1)
     {
         chp=ch;
-        t=coupled_solve1D_zbr(coupled_gap,xt,yt,tol,gamma0,xk,ak,n,k,Vs,Vt,sxc,syc,nl,tp);
-        ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,t,gamma0,xk,ak,n,k,nl,tp);
+        t=coupled_solve1D_zbr(coupled_gap,xt,yt,tol,gamma0,n,k,Vs,Vt,sxc,syc,nl,tp);
+        ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,t,gamma0,n,k,nl,tp);
         for(int i=0;i<c;i++)
         {
             if(ta[i]==t)
@@ -231,9 +231,9 @@ double* coupled_get_res(double Vs,double Vt,double nl,double tp,double gamma0,do
       res[1]=ch;
 
       if(isfromsinglet)
-        res[2]=coupled_deltas(t,ch,gamma0,xk,ak,n,k,Vs,tp);
+        res[2]=coupled_deltas(t,ch,gamma0,n,k,Vs,tp);
       else
-        res[2]=coupled_deltat(t,ch,gamma0,xk,ak,n,k,Vt,tp);
+        res[2]=coupled_deltat(t,ch,gamma0,n,k,Vt,tp);
 
 
       std::cout<<"gamma0  "<<std::setprecision(12)<<gamma0<<"   ch   "<<std::setprecision(12)<<ch<<"  Tc  "<<std::setprecision(12)<<t<<"  dt/ds "<<std::setprecision(12)<<res[2]<<endl;
@@ -241,14 +241,14 @@ double* coupled_get_res(double Vs,double Vt,double nl,double tp,double gamma0,do
       return res;
 }
 
-double* eq_gamma0_fs(double gamma0,double Vs,double Vt,double nl,double tp,double sxc,double syc,double xk[],double ak[],int n,int k,double pts,double ptt,double pchs,double pcht,bool isfromsinglet)
+double* eq_gamma0_fs(double gamma0,double Vs,double Vt,double nl,double tp,double sxc,double syc,int n,int k,double pts,double ptt,double pchs,double pcht,bool isfromsinglet)
 {
     double* res;
     double dspdt,mi;
     double* tmp;
 
     tmp=(double *)malloc(4*sizeof(double));
-    res=coupled_get_res_both(Vs,Vt,nl,tp,gamma0,sxc,syc,xk,ak,n,k,pts,ptt,pchs,pcht);
+    res=coupled_get_res_both(Vs,Vt,nl,tp,gamma0,sxc,syc,n,k,pts,ptt,pchs,pcht);
 
     tmp[0]=gamma0;
     if(isfromsinglet)
@@ -278,7 +278,7 @@ double* eq_gamma0_fs(double gamma0,double Vs,double Vt,double nl,double tp,doubl
     return tmp;
 }
 
-double* eq_gamma0_bz(double gamma0,double Vs,double Vt,double nl,double tp,double sxc,double syc,double xk[],double ak[],int n,int k,double pts,double ptt,double pchs,double pcht,bool isfromsinglet)
+double* eq_gamma0_bz(double gamma0,double Vs,double Vt,double nl,double tp,double sxc,double syc,int n,int k,double pts,double ptt,double pchs,double pcht,bool isfromsinglet)
 {
 
     double* res;
@@ -286,7 +286,7 @@ double* eq_gamma0_bz(double gamma0,double Vs,double Vt,double nl,double tp,doubl
     double* tmp;
 
     tmp=(double *)malloc(5*sizeof(double));
-    res=coupled_get_res_both(Vs,Vt,nl,tp,gamma0,sxc,syc,xk,ak,n,k,pts,ptt,pchs,pcht);
+    res=coupled_get_res_both(Vs,Vt,nl,tp,gamma0,sxc,syc,n,k,pts,ptt,pchs,pcht);
     tmp[0]=gamma0;
     if(isfromsinglet)
     {
@@ -317,7 +317,7 @@ cout<<"eq_gamma0_bz: "<<tmp[1]<<" t: "<<tmp[2]<<" mi: "<<tmp[3]<<" d: "<<tmp[4]<
     return tmp;
 }
 
-double* coupled_simplified_gap(double Tc,double mi,double gamma0,double xk[],double ak[],int n,int k,double Vs,double Vt,double tp)
+double* coupled_simplified_gap(double Tc,double mi,double gamma0,int n,int k,double Vs,double Vt,double tp)
 {
   const double pi=asin(1.0)*2.0;
   double a,b,c,temp;
@@ -325,9 +325,9 @@ double* coupled_simplified_gap(double Tc,double mi,double gamma0,double xk[],dou
 
   res=(double *)malloc(6*sizeof(double));
 
-  a=sc_integrate1D_gl_parallel(coupled_fp,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
-  b=sc_integrate1D_gl_parallel(coupled_fpdk2,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
-  c=sc_integrate1D_gl_parallel(coupled_fmdk,0.0,pi,n,k,xk,ak,Tc,mi,gamma0,tp)/(pi);
+  a=sc_integrate1D_gl_gpu(coupled_fp,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
+  b=sc_integrate1D_gl_gpu(coupled_fpdk2,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
+  c=sc_integrate1D_gl_gpu(coupled_fmdk,0.0,pi,n,k,Tc,mi,gamma0,tp)/(pi);
 
   /*temp=1.0-Vs*a-Vt*b+Vs*Vt*c*c+Vs*Vt*a*b;
   cout<<-Vs*a<<" "<<-Vt*b<<" "<<Vs*Vt*c*c<<" "<<Vs*Vt*a*b<<" "<<temp<<endl;*/
@@ -341,7 +341,7 @@ double* coupled_simplified_gap(double Tc,double mi,double gamma0,double xk[],dou
   return res;
 }
 
-double* coupled_get_res_both(double Vs,double Vt,double nl,double tp,double gamma0,double sxc,double syc,double xk[],double ak[],int n,int k,double pts,double ptt,double pchs,double pcht)
+double* coupled_get_res_both(double Vs,double Vt,double nl,double tp,double gamma0,double sxc,double syc,int n,int k,double pts,double ptt,double pchs,double pcht)
 {
     double t,ch,chp,tol=0.0000001;
     double msxt,msyt,mtxt,mtyt,hs,ht,th,xs,ys,xt,yt,dt;
@@ -368,19 +368,19 @@ double* coupled_get_res_both(double Vs,double Vt,double nl,double tp,double gamm
     hs=th;
     double mh=(pcht-pchs)*0.001;
 
-     ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,msxt,gamma0,xk,ak,n,k,nl,tp);
-     xs=coupled_gap(msxt,ch,gamma0,xk,ak,n,k,Vs,Vt,tp);
+     ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,msxt,gamma0,n,k,nl,tp);
+     xs=coupled_gap(msxt,ch,gamma0,n,k,Vs,Vt,tp);
 
     do
     {
         i++;
         msyt=msxt+sig*hs;
-        ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,msyt,gamma0,xk,ak,n,k,nl,tp);
-        ys=coupled_gap(msyt,ch,gamma0,xk,ak,n,k,Vs,Vt,tp);
+        ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,msyt,gamma0,n,k,nl,tp);
+        ys=coupled_gap(msyt,ch,gamma0,n,k,Vs,Vt,tp);
         //cout<<"find s "<<msyt<<" "<<ys<<endl;
         if(xs*ys<0)
         {
-            t=coupled_solve1D_zbr(coupled_gap,msxt,msyt,tol,gamma0,xk,ak,n,k,Vs,Vt,sxc,syc,nl,tp);
+            t=coupled_solve1D_zbr(coupled_gap,msxt,msyt,tol,gamma0,n,k,Vs,Vt,sxc,syc,nl,tp);
         }
         else
         {
@@ -392,15 +392,15 @@ double* coupled_get_res_both(double Vs,double Vt,double nl,double tp,double gamm
 
    if(t!=0.0)
    {
-    ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,t,gamma0,xk,ak,n,k,nl,tp);
+    ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,t,gamma0,n,k,nl,tp);
    //cout<<"ch "<<ch<<endl;
     chp=0.0;
 
     while(abs(ch-chp)>tol && t!=0.0 && flag1)
     {
         chp=ch;
-        t=coupled_solve1D_zbr(coupled_gap,msxt,msyt,tol,gamma0,xk,ak,n,k,Vs,Vt,sxc,syc,nl,tp);
-        ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,t,gamma0,xk,ak,n,k,nl,tp);
+        t=coupled_solve1D_zbr(coupled_gap,msxt,msyt,tol,gamma0,n,k,Vs,Vt,sxc,syc,nl,tp);
+        ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,t,gamma0,n,k,nl,tp);
 
         for(int i=0;i<c;i++)
         {
@@ -413,7 +413,7 @@ double* coupled_get_res_both(double Vs,double Vt,double nl,double tp,double gamm
     res[0]=gamma0;
     res[1]=t;
     res[2]=ch;
-    res[3]=coupled_deltas(t,ch,gamma0,xk,ak,100*n,k,Vs,tp);
+    res[3]=coupled_deltas(t,ch,gamma0,100*n,k,Vs,tp);
    }
 
 else {
@@ -438,21 +438,21 @@ else {
     ht=th*0.1;
     mtyt=ptt+sig*ht;
     //cout<<"sm0: "<<mtyt<<" "<<th<<" "<<ptt<<" "<<sig<<endl;
-    ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,mtyt,gamma0,xk,ak,n,k,nl,tp);
-    yt=coupled_gap(mtyt,ch,gamma0,xk,ak,n,k,Vs,Vt,tp);
+    ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,mtyt,gamma0,n,k,nl,tp);
+    yt=coupled_gap(mtyt,ch,gamma0,n,k,Vs,Vt,tp);
     //cout<<"find t "<<mtyt<<" "<<yt<<endl;
     do
     {
         i++;
         mtxt=mtyt-sig*ht;
 
-        ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,mtxt,gamma0,xk,ak,n,k,nl,tp);
-        xt=coupled_gap(mtxt,ch,gamma0,xk,ak,n,k,Vs,Vt,tp);
+        ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,mtxt,gamma0,n,k,nl,tp);
+        xt=coupled_gap(mtxt,ch,gamma0,n,k,Vs,Vt,tp);
         //cout<<"find t "<<mtxt<<" "<<xt<<endl;
         if(xt*yt<0.0)
         {
            //cout<<"sm0: "<<mtxt<<" "<<mtyt<<endl;
-            t=coupled_solve1D_zbr(coupled_gap,mtxt,mtyt,tol,gamma0,xk,ak,n,k,Vs,Vt,sxc,syc,nl,tp);
+            t=coupled_solve1D_zbr(coupled_gap,mtxt,mtyt,tol,gamma0,n,k,Vs,Vt,sxc,syc,nl,tp);
         }
         else
         {
@@ -464,15 +464,15 @@ else {
 
     if(t!=0.0)
     {
-    ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,t,gamma0,xk,ak,n,k,nl,tp);
+    ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,t,gamma0,n,k,nl,tp);
     chp=0.0;
     flag1=true;
 
     while(abs(ch-chp)>tol && t!=0.0 && flag1)
     {
         chp=ch;
-        t=coupled_solve1D_zbr(coupled_gap,mtxt,mtyt,tol,gamma0,xk,ak,n,k,Vs,Vt,sxc,syc,nl,tp);
-        ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,t,gamma0,xk,ak,n,k,nl,tp);
+        t=coupled_solve1D_zbr(coupled_gap,mtxt,mtyt,tol,gamma0,n,k,Vs,Vt,sxc,syc,nl,tp);
+        ch=occ_solve1D_zbr(sc_occ,sxc,syc,tol,t,gamma0,n,k,nl,tp);
         //cout<<"mix_t t,ch "<<t<<" "<<ch<<endl;
         for(int i=0;i<c;i++)
         {
@@ -486,7 +486,7 @@ else {
     res[4]=gamma0;
     res[5]=t;
     res[6]=ch;
-    res[7]=coupled_deltat(t,ch,gamma0,xk,ak,100*n,k,Vt,tp);
+    res[7]=coupled_deltat(t,ch,gamma0,100*n,k,Vt,tp);
     }
     else
     {
