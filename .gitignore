@@ -1,4 +1,5 @@
-# Ignore exec file
-./miesz.exe
-# Ignore ltbb directory
-./oneTBB/
+# Ignore build arifacts
+\x64
+
+#Ignore VS files
+\.vs

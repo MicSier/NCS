@@ -16,54 +16,19 @@ using namespace std;
 
 #define BLOCK_SIZE 16
 const double h_pi=3.141592653597932384;
-__constant__ double pi=3.141592653597932384;
-string dn[] = {"coupled+s","coupled+t","univ+s","phase+","coupled+nodless+s","coupled+nodal+s","coupled+nodless+t","coupled+nodal+t","fs","nodes","univ+t","dos","simplification+gap","simplification+delta","simplification+ratio"};
-double delta=0.0000000001;
-int n=1000, k=5;
+__constant__ double pi_device =3.141592653597932384;
+const double pi = 3.141592653597932384;
+const double delta = 0.0000000001;
+const int n=10000, k=5;
 
 const double xk[]={0.9061798459386641,-0.9061798459386641,0.538469310105683,-0.5384693101056829,0.0};
 const double ak[]={0.2369268850561876,0.2369268850561876,0.47862867049936647,0.47862867049936586,0.5688888888888889};
 
 typedef double (*Under_Integral_Func)(double,double,double,double,double);
 
-template <typename T>
-struct cudaCallableFunctionPointer
-{
-public:
-  cudaCallableFunctionPointer(T* f_)
-  {
-    T* host_ptr = (T*)malloc(sizeof(T));
-    cudaMalloc((void**)&ptr, sizeof(T));
-
-    cudaMemcpyFromSymbol(host_ptr, *f_, sizeof(T));
-    cudaMemcpy(ptr, host_ptr, sizeof(T), cudaMemcpyHostToDevice);
-    
-    cudaFree(host_ptr);
-  }
-
-  ~cudaCallableFunctionPointer()
-  {
-    cudaFree(ptr);
-  }
-
-  T* ptr;
-};
-
-/*double evth(double x)
-{
-    if(abs(x)>100)
-        return x/abs(x);
-    else
-    {
-        double z=exp(x);
-        return (z-1.0/z)/(z+1.0/z);
-    }
-}*/
-
 __device__ double g(double x,double gamma0)
 {
     return gamma0*(abs(sin(x)));
-    //return gamma0*1;
 }
 
 __device__ double ek(double x,double tp)
@@ -109,7 +74,7 @@ __global__ void integrateKernel(double* result, UI_Func_Index i_f, double a, dou
     }
 }
 
-double sc_integrate1D_gl_gpu(UI_Func_Index i_f, double a, double b, int n, int k, double Tc, double mi, double gamma0, double tp) {
+double sc_integrate1D_gl_gpu(UI_Func_Index i_f, double a, double b, double Tc, double mi, double gamma0, double tp) {
     double h = (b - a) / (n);
    // Host variables
     double* h_result = new double[n * k];
@@ -133,12 +98,10 @@ double sc_integrate1D_gl_gpu(UI_Func_Index i_f, double a, double b, int n, int k
     cudaError_t cudaStatus = cudaGetLastError();
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "Kernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-        // Handle error
     }
     cudaStatus = cudaDeviceSynchronize();
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "cudaDeviceSynchronize failed: %s\n", cudaGetErrorString(cudaStatus));
-        // Handle error
     }
     // Copy the result back to host
     cudaMemcpy(h_result, d_result, n * k * sizeof(double), cudaMemcpyDeviceToHost);
@@ -152,43 +115,30 @@ double sc_integrate1D_gl_gpu(UI_Func_Index i_f, double a, double b, int n, int k
     return result;
 }
 
- double singlet_gap(double Tc,double mi,double gamma0,int n,int k,double Vs,double tp)
+double singlet_gap(double Tc,double mi,double gamma0,double Vs,double tp)
 {
-    const double pi=asin(1.0)*2.0;
-    double temp;
-
-    temp=sc_integrate1D_gl_gpu(i_singlet_uifunt,0.0,pi,n,k,Tc,mi,gamma0,tp);
-    temp=1.0-Vs/(2.0*pi)*(temp);
-    return temp;
-
+    return 1.0-Vs/(2.0*pi)*sc_integrate1D_gl_gpu(i_singlet_uifunt,0.0,pi,Tc,mi,gamma0,tp);
 }
 
-double sc_occ(double mi,double Tc,double gamma0,int n,int k,double nl,double tp)
+double sc_occ(double mi,double Tc,double gamma0,double nl,double tp)
 {
-    double temp;
-    const double pi=3.141592653597932384;
-
-    temp=sc_integrate1D_gl_gpu(i_sc_uifunc,0.0,pi,n,k,Tc,mi,gamma0,tp);
-
-    temp=1.0-nl-temp/(2.0*pi);
-
-    return temp;
+    return 1.0-nl-sc_integrate1D_gl_gpu(i_sc_uifunc,0.0,pi,Tc,mi,gamma0,tp)/(2.0*pi);
 }
 
-typedef double (*Gap_Func)(double,double,double,int,int,double,double);
+typedef double (*Gap_Func)(double,double,double,double,double);
 
 
-double occ_solve1D_zbr(Gap_Func f,double a, double b,double tol,double mi,double gamma0,int n,int k,double Vs,double tp)
+double occ_solve1D_zbr(Gap_Func f,double a, double b,double tol,double T,double gamma0,double nl,double tp)
 {
     int itmax=100;
-    double d,r,s,e,p,q,xm,tol1,c,fa,fb,fc,eps=3.0e-8;
+    double d,r,s,e,p,q,xm,tol1,c,fa,fb,fc;
 
-    fa=f(a,mi,gamma0,n,k,Vs,tp);
-    fb=f(b,mi,gamma0,n,k,Vs,tp);
+    fa=f(a,T,gamma0,nl,tp);
+    fb=f(b,T,gamma0,nl,tp);
 
     if(fa*fb>0.0)
     {
-        cout<<"occ_zbr err:Takie same znaki!  fa  "<<fa<<" fb  "<<fb<<" tc,g0,a,b  "<<mi<<"  "<<gamma0<<"  "<<a<<"  "<<b<<endl;
+        cout<<"occ_zbr err:Takie same znaki!  fa  "<<fa<<" fb  "<<fb<<" tc,g0,a,b  "<<T<<"  "<<gamma0<<"  "<<a<<"  "<<b<<endl;
         return 0.0;
     }
     c=b;
@@ -211,7 +161,7 @@ double occ_solve1D_zbr(Gap_Func f,double a, double b,double tol,double mi,double
             fb=fc;
             fc=fa;
         }
-        tol1=2.0*eps*abs(b)+0.5*tol;
+        tol1=2.0*delta*abs(b)+0.5*tol;
         xm=0.5*(c-b);
         if((abs(xm)<tol1)||(fb==0)) return b;
         if((abs(e)>tol1)&&(abs(fa)>abs(fb)))
@@ -255,7 +205,7 @@ double occ_solve1D_zbr(Gap_Func f,double a, double b,double tol,double mi,double
             if(xm>0.0) b=b+abs(tol1);
             else b=b-abs(tol1);
         }
-        fb=f(b,mi,gamma0,n,k,Vs,tp);
+        fb=f(b,T,gamma0,nl,tp);
 
 
     }
@@ -263,27 +213,25 @@ double occ_solve1D_zbr(Gap_Func f,double a, double b,double tol,double mi,double
     return b;
 }
 
-double* sc_solve1D_zbr(Gap_Func f,double a, double b,double tol,double gamma0,int n,int k,double Vs,double sxc,double syc,double nl,double tp)
+struct Result_Pair {
+    double T;
+    double mi;
+};
+
+Result_Pair sc_solve1D_zbr(Gap_Func f, double a, double b, double tol, double gamma0, double Vs, double sxc, double syc, double nl, double tp)
 {
     int itmax=100;
     double d,r,s,e,p,q,xm,tol1,c,fa,fb,fc,eps=3.0e-8,mi;
-    double* res;
-
-    res=(double *)malloc(2*sizeof(double));
-
-    mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,a,gamma0,n,k,nl,tp);
-    fa=f(a,mi,gamma0,n,k,Vs,tp);
-     mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,b,gamma0,n,k,nl,tp);
-    fb=f(b,mi,gamma0,n,k,Vs,tp);
-    res[0]=b;
-    res[1]=mi;
+    mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,a,gamma0,nl,tp);
+    fa=f(a,mi,gamma0,Vs,tp);
+    mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,b,gamma0,nl,tp);
+    fb=f(b,mi,gamma0,Vs,tp);
+    Result_Pair res = { b, mi };
 
     if(fa*fb>0.0)
     {
         cout<<"sc_zbr err:Takie same znaki!  fa  "<<fa<<" fb  "<<fb<<" mi,g0,a,b  "<<mi<<"  "<<gamma0<<"  "<<a<<"  "<<b<<endl;
-        res[0]=0.0;
-        res[1]=0.0;
-        return res;
+        return { 0.0,0.0 };
     }
     c=b;
     fc=fb;
@@ -349,65 +297,51 @@ double* sc_solve1D_zbr(Gap_Func f,double a, double b,double tol,double gamma0,in
             if(xm>0.0) b=b+abs(tol1);
             else b=b-abs(tol1);
         }
-         mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,b,gamma0,n,k,nl,tp);
-        fb=f(b,mi,gamma0,n,k,Vs,tp);
-        res[0]=b;
-        res[1]=mi;
-
+        mi=occ_solve1D_zbr(sc_occ,sxc,syc,tol,b,gamma0,nl,tp);
+        fb=f(b,mi,gamma0,Vs,tp);
+        res = { b,mi };
     }
+
     cout<<"zbr exeding max iteractions!"<<endl;
     return res;
 }
 
-double* singlet_get_res(double Vs,double nl,double tp,double gamma0,double xt,double yt,double xc,double yc,int n,int k)
+Result_Pair singlet_get_res(double Vs,double nl,double tp,double gamma0,double xt,double yt,double xc,double yc)
 {
-    double t,ch,chp,tol=0.000000001;
-    double* res;
+    double ch,tol=0.000000001;
+    
+    Result_Pair res=sc_solve1D_zbr(singlet_gap,xt,yt,tol,gamma0,Vs,xc,yc,nl,tp);
+   /* ch = occ_solve1D_zbr(sc_occ, xc, yc, tol, res.T, gamma0, nl, tp);
 
-    std::cout<<"begin singlet_get_res"<<std::endl;
-    res=sc_solve1D_zbr(singlet_gap,xt,yt,tol,gamma0,n,k,Vs,xc,yc,nl,tp);
-    std::cout<<"end singlet_get_res"<<std::endl;
-    std::cout<<"t singlet ch "<<res[0]<<" t "<<res[1]<<std::endl;
-   /* chp=0.0;
-    cout<<"t singlet ch "<<chp<<" t "<<t<<endl;
-    t=sc_solve1D_zbr(singlet_gap,xt,yt,tol,chp,gamma0,n,k,Vs);
-    cout<<"ch singlet ch "<<chp<<" t "<<t<<endl;
-    ch=sc_solve1D_zbr(sc_occ,xc,yc,tol,t,gamma0,n,k,nl);
-
-    while(abs(ch-chp)>tol)
+    while(abs(ch-res.mi)>tol)
     {
-        chp=ch;
-        cout<<"t singlet ch "<<chp<<" t "<<t<<endl;
-        t=sc_solve1D_zbr(singlet_gap,xt,yt,tol,chp,gamma0,n,k,Vs);
-        cout<<"ch singlet ch "<<chp<<" t "<<t<<endl;
-        ch=sc_solve1D_zbr(sc_occ,xc,yc,tol,t,gamma0,n,k,nl);
-
+        res=sc_solve1D_zbr(singlet_gap,xt,yt,tol,gamma0,Vs,res.mi *.05,res.mi *1.5,nl,tp);
+        ch=occ_solve1D_zbr(sc_occ,xc,yc,tol,res.T,gamma0,nl,tp);
     }
-
-      res[0]= t;
-      res[1]=ch;*/
-
+    */
+      std::cout<<"singlet ch "<<res.mi <<" t "<<res.T<<std::endl;
       return res;
 }
 
-__device__ double* sc_dos(double o,double g0,double tp)
+struct Density_Result {
+    double plus;
+    double minus;
+};
+
+__device__ Density_Result sc_dos(double o,double g0,double tp)
 {
-  double* res;
-  int npi=100000,nomega=100000;
-  double ddos=1.e-02;
-	double step=2.0*pi/npi;
+    int npi=100000;
+    double ddos=1.e-02;
+	double step=2.0*pi_device/npi;
 	double densitytot=2.*npi;
-  double omega,gamma,omp,omm;
-
-  res=(double *)malloc(3*sizeof(double));
-
+    double omega,gamma,omp,omm;
 
 	double domega=2.*ddos;
 
     double densityp=0.;
     double densitym=0.;
 
-    double x=-pi;
+    double x=-pi_device;
     for(int j=0;j<npi;j++)
     {
       omega=ek(x,tp);
@@ -418,43 +352,32 @@ __device__ double* sc_dos(double o,double g0,double tp)
       if (abs(omm-o) < ddos) densitym=densitym+1.;
       x=x+step;
     }
-    densitym=densitym/densitytot;
-    densityp=densityp/densitytot;
-    double densitypm=densityp+densitym;
-    densitym=densitym/domega;
-    densityp=densityp/domega;
-    densitypm=densitypm/domega;
-
-    res[0]=densitym;
-    res[1]=densityp;
-    res[2]=densitypm;
-
-    return res;
+    densitym=densitym/(densitytot*domega);
+    densityp=densityp/(densitytot*domega);
+    return {densityp,densitym};
 }
 
 double fs(double gamma0,double mi,double lambda)
 {
-  double a=1+0.25*gamma0*gamma0-0.25*mi*mi;
-  if(a>0)
-  {
-    a=-0.5*mi+lambda*0.5*gamma0*sqrt(a);
-  }
-  else
-  {
-    a=-0.5*mi;
-  }
-  a=a/(1+0.25*gamma0*gamma0);
-  return a;
+    double a=1+0.25*gamma0*gamma0-0.25*mi*mi;
+    if(a>0)
+    {
+        a=-0.5*mi+lambda*0.5*gamma0*sqrt(a);
+    }
+    else
+    {
+        a=-0.5*mi;
+    }
+    a=a/(1+0.25*gamma0*gamma0);
+    return a;
 }
 
 
-
-void sc_tabulate1D(string fname,double* (*f)(double,double,double,double,double,double,double,double,int,int),double a, double b, int N,double Vs,double tp,double nl,double xt,double yt,double xc,double yc,int n,int k)
+void sc_tabulate1D(string fname, Result_Pair (*f)(double,double,double,double,double,double,double,double),double a, double b, int N,double Vs,double tp,double nl,double xt,double yt,double xc,double yc)
 {
     fstream outfile(fname,fstream::out);
     double g0=a;
     double h=(b-a)/(N-1);
-    double* tmp;
 
     if(!outfile.good())
     {
@@ -464,15 +387,15 @@ void sc_tabulate1D(string fname,double* (*f)(double,double,double,double,double,
     while(h>0.0001)
     {
         g0=g0+h;
-        tmp=f(Vs,nl,tp,g0,xt,yt,xc,yc,n,k);
-        if(tmp[0]==0.0)
+        Result_Pair res = f(Vs,nl,tp,g0,xt,yt,xc,yc);
+        if(res.T == 0.0)
         {
             g0=g0-h;
             h=h/2.0;
         }
         else
         {
-            outfile<<setprecision(10)<<g0<<" "<<setprecision(10)<<tmp[0]<<" "<<setprecision(10)<<tmp[1]<<endl;
+            outfile<<setprecision(10)<<g0<<" "<<setprecision(10)<<res.T<<" "<<setprecision(10)<<res.mi<<endl;
         }
 
     }
@@ -481,10 +404,11 @@ void sc_tabulate1D(string fname,double* (*f)(double,double,double,double,double,
 int main()
 {
     double xt=0.000000001,yt=10.0,xc=0.0000001,yc=5.0;
-    double tp=0.0,nl=1.5,ilr=0.25,g0=0.01,ch,mi,dmi;
+    double tp=0.0,nl=1.2,ch,mi,dmi;
+    double Vs = 0.6;
     string fname= "singlet.txt";
 
     //singlet_get_res(1.0,nl,tp,g0,xt,yt,xc,yc,100,5); //Vs,nl,tp,g0,xt,yt,xc,yc,n,k
-    sc_tabulate1D(fname,singlet_get_res,0.01,0.5,100,1.0,tp,nl,xt,yt,xc,yc,100,5); //fname,f,a,b,N,Vs,tp,nl,xt,yt,xc,yc,n,k 
+    sc_tabulate1D(fname,singlet_get_res,0.01,0.5,100,Vs,tp,nl,xt,yt,xc,yc); //fname,f,a,b,N,Vs,tp,nl,xt,yt,xc,yc 
     return 0;
 }
