@@ -126,8 +126,62 @@ __device__ double tryplet_uifunt(double x, double Tc, double mi, double gamma0, 
 	return uifunt;
 }
 
-__device__ Under_Integral_Func uif_array[] = { sc_uifunc, singlet_uifunt, tryplet_uifunt };
-enum UI_Func_Index { i_sc_uifunc = 0, i_singlet_uifunt = 1, i_tryplet_uifunt };
+__device__ double coupled_fp(double x, double Tc, double mi, double gamma0, double tp)
+{
+	double ksip = ek(x, tp) - mi + g(x, gamma0), ksim = ek(x, tp) - mi - g(x, gamma0);
+	double res, eps = 0.000000000001;
+
+	if (abs(ksim) < eps)
+		res = 1.0 / (2.0 * Tc);
+	else
+		res = tanh(ksim / (2.0 * Tc)) / (2.0 * ksim);
+
+	if (abs(ksip) < eps)
+		res += 1.0 / (2.0 * Tc);
+	else
+		res += tanh(ksip / (2.0 * Tc)) / (2.0 * ksip);
+
+	return res / 2.0;
+}
+
+__device__ double coupled_fmdk(double x, double Tc, double mi, double gamma0, double tp)
+{
+	double ksip = ek(x, tp) - mi + g(x, gamma0), ksim = ek(x, tp) - mi - g(x, gamma0);
+	double res, eps = 0.000000000001;
+
+	if (abs(ksim) < eps)
+		res = 1.0 / (2.0 * Tc);
+	else
+		res = tanh(ksim / (2.0 * Tc)) / (2.0 * ksim);
+
+	if (abs(ksip) < eps)
+		res -= 1.0 / (2.0 * Tc);
+	else
+		res -= tanh(ksip / (2.0 * Tc)) / (2.0 * ksip);
+
+	return -res / 2.0 * sqrt(d2(x));
+}
+
+__device__ double coupled_fpdk2(double x, double Tc, double mi, double gamma0, double tp)
+{
+	double ksip = ek(x, tp) - mi + g(x, gamma0), ksim = ek(x, tp) - mi - g(x, gamma0);
+	double res, eps = 0.000000000001;
+
+	if (abs(ksim) < eps)
+		res = 1.0 / (2.0 * Tc);
+	else
+		res = tanh(ksim / (2.0 * Tc)) / (2.0 * ksim);
+
+	if (abs(ksip) < eps)
+		res += 1.0 / (2.0 * Tc);
+	else
+		res += tanh(ksip / (2.0 * Tc)) / (2.0 * ksip);
+
+	return res / 2.0 * d2(x);
+}
+
+__device__ Under_Integral_Func uif_array[] = { sc_uifunc, singlet_uifunt, tryplet_uifunt, coupled_fp, coupled_fmdk, coupled_fpdk2 };
+enum UI_Func_Index { i_sc_uifunc = 0, i_singlet_uifunt = 1, i_tryplet_uifunt = 2, i_coupled_fp = 3, i_coupled_fmdk = 4, i_coupled_fpdk2 = 5 };
 
 __global__ void integrateKernel(double* result, UI_Func_Index i_f, double a, double h, int n, double* xk, double* ak, double Tc, double mi, double gamma0, double tp) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -506,12 +560,473 @@ void sc_tabulate1D(string fname, Result_Pair(*f)(double, double, double, double,
 	}
 }
 
+double coupled_gap(double Tc, double mi, double gamma0, double Vs, double Vt, double tp)
+{
+	const double pi = asin(1.0) * 2.0;
+	double a, b, c, temp;
+
+	a = sc_integrate1D_gl_gpu(i_coupled_fp, 0.0, pi, Tc, mi, gamma0, tp) / (pi);
+	b = sc_integrate1D_gl_gpu(i_coupled_fpdk2, 0.0, pi, Tc, mi, gamma0, tp) / (pi);
+	c = sc_integrate1D_gl_gpu(i_coupled_fmdk, 0.0, pi, Tc, mi, gamma0, tp) / (pi);
+	temp = (1.0 - Vs * a) * (1.0 - Vt * b) + Vs * Vt * c * c;
+
+	return temp;
+
+}
+
+double coupled_deltas(double Tc, double mi, double gamma0, double Vs, double tp)
+{
+	const double pi = asin(1.0) * 2.0;
+	double a, b, deltaratiots;
+
+	a = sc_integrate1D_gl_gpu(i_coupled_fp, 0.0, pi, Tc, mi, gamma0, tp) / (pi);
+	b = sc_integrate1D_gl_gpu(i_coupled_fmdk, 0.0, pi, Tc, mi, gamma0, tp) / (pi);
+	deltaratiots = (1.0 - Vs * a) / (Vs * b);
+
+	return deltaratiots;
+}
+
+double coupled_deltat(double Tc, double mi, double gamma0, double Vt, double tp)
+{
+	const double pi = asin(1.0) * 2.0;
+	double a, b, deltaratiost;
+
+	a = sc_integrate1D_gl_gpu(i_coupled_fpdk2, 0.0, pi, Tc, mi, gamma0, tp) / (pi);
+	b = sc_integrate1D_gl_gpu(i_coupled_fmdk, 0.0, pi, Tc, mi, gamma0, tp) / (pi);
+	deltaratiost = -(1.0 - Vt * a) / (Vt * b);
+
+	return deltaratiost;
+}
+
+struct Result_Triple
+{
+	double T, mi, delta;
+};
+
+double coupled_solve1D_zbr(double (*f)(double, double, double, double, double, double), double a, double b, double tol, double gamma0, double Vs, double Vt, double sxc, double syc, double nl, double tp)
+{
+	int itmax = 100;
+	double mi, d, r, s, e, p, q, xm, tol1, c, fa, fb, fc, eps = 3.0e-8;
+
+	mi = occ_solve1D_zbr(sc_occ, sxc, syc, tol, a, gamma0, nl, tp);
+	fa = f(a, mi, gamma0, Vs, Vt, tp);
+	mi = occ_solve1D_zbr(sc_occ, sxc, syc, tol, b, gamma0, nl, tp);
+	fb = f(b, mi, gamma0, Vs, Vt, tp);
+
+
+	if (fa * fb > 0.0)
+	{
+		if (min(fa, fb) < tol * tol) return min(fa, fb);
+		else
+		{
+			cout << "coupled_zbr err:Takie same znaki!  fa  " << fa << "  fb  " << fb << endl;
+			return 0.0;
+		}
+
+	}
+	c = b;
+	fc = fb;
+	for (int i = 1; i < itmax; i++)
+	{
+		if (fb * fc > 0.0)
+		{
+			c = a;
+			fc = fa;
+			d = b - a;
+			e = d;
+		}
+		if (abs(fc) < abs(fb))
+		{
+			a = b;
+			b = c;
+			c = a;
+			fa = fb;
+			fb = fc;
+			fc = fa;
+		}
+		tol1 = 2.0 * eps * abs(b) + 0.5 * tol;
+		xm = 0.5 * (c - b);
+		if ((abs(xm) < tol1) || (fb == 0)) return b;
+		if ((abs(e) > tol1) && (abs(fa) > abs(fb)))
+		{
+			s = fb / fa;
+			if (a == c)
+			{
+				p = 2.0 * xm * s;
+				q = 1.0 - s;
+			}
+			else
+			{
+				q = fa / fc;
+				r = fb / fc;
+				p = s * (2.0 * xm * q * (q - r) - (b - a) * (r - 1.0));
+				q = (q - 1.0) * (r - 1.0) * (s - 1.0);
+			}
+			if (p > 0.0) q = -q;
+			p = abs(p);
+			if (2.0 * p < min(3.0 * xm * q - abs(tol1 * q), abs(e * q)))
+			{
+				e = d;
+				d = p / q;
+			}
+			else
+			{
+				d = xm;
+				e = d;
+			}
+		}
+		else
+		{
+			d = xm;
+			e = d;
+		}
+		a = b;
+		fa = fb;
+		if (abs(d) > tol1) b += d;
+		else
+		{
+			if (xm > 0.0) b += abs(tol1);
+			else b += -abs(tol1);
+		}
+		mi = occ_solve1D_zbr(sc_occ, sxc, syc, tol, b, gamma0, nl, tp);
+		fb = f(b, mi, gamma0, Vs, Vt, tp);
+
+	}
+	cout << "zbr exeding max iteractions!" << endl;
+	return b;
+}
+Result_Triple coupled_get_res(double Vs, double Vt, double nl, double tp, double gamma0, double sxt, double syt, double sxc, double syc, bool isfromsinglet)
+{
+	double t, ch, chp, tol = 0.00001;
+	double xt, yt, x, y, at, bt, h;
+	bool flag1 = false;
+	Result_Pair res_sin;
+	Result_Pair res_try;
+	Result_Triple res;
+	int c = 0;
+	double ta[10];
+
+
+	for (int i = 0; i < 10; i++)
+	{
+		ta[i] = 0.0;
+	}
+
+	res_sin = singlet_get_res(Vs, nl, tp, gamma0, sxt, syt, sxc, syc);
+	res_try = tryplet_get_res(Vt, nl, tp, gamma0, sxt, syt, sxc, syc);
+
+	xt = res_sin.T;
+	yt = res_try.T;
+
+	if (isfromsinglet)
+	{
+		at = xt;
+		h = (yt - xt) / 400.0;
+	}
+	else
+	{
+		at = yt;
+		h = -(yt - xt) / 400.0;
+	}
+
+	ch = occ_solve1D_zbr(sc_occ, sxc, syc, tol, at, gamma0, nl, tp);
+	x = coupled_gap(at, ch, gamma0, Vs, Vt, tp);
+
+	for (int i = 1; i <= 400 && flag1 == false; i++)
+	{
+		bt = at + h;
+		ch = occ_solve1D_zbr(sc_occ, sxc, syc, tol, bt, gamma0, nl, tp);
+		y = coupled_gap(bt, ch, gamma0, Vs, Vt, tp);
+
+		if (x * y < 0)
+		{
+			if (isfromsinglet)
+			{
+				xt = at;
+				yt = bt;
+			}
+			else
+			{
+				xt = bt;
+				yt = at;
+			}
+			flag1 = true;
+
+		}
+
+		x = y;
+		at = bt;
+	}
+
+	t = coupled_solve1D_zbr(coupled_gap, xt, yt, tol, gamma0, Vs, Vt, sxc, syc, nl, tp);
+	ch = occ_solve1D_zbr(sc_occ, sxc, syc, tol, t, gamma0, nl, tp);
+	chp = 0.0;
+
+	while (abs(ch - chp) > tol && t != 0.0 && c < 10 && flag1)
+	{
+		chp = ch;
+		t = coupled_solve1D_zbr(coupled_gap, xt, yt, tol, gamma0, Vs, Vt, sxc, syc, nl, tp);
+		ch = occ_solve1D_zbr(sc_occ, sxc, syc, tol, t, gamma0, nl, tp);
+		for (int i = 0; i < c; i++)
+		{
+			if (ta[i] == t)
+				flag1 = false;
+		}
+		ta[c] = t;
+		c++;
+	}
+
+	res.T = t;
+	res.mi = ch;
+
+	if (isfromsinglet)
+		res.delta = coupled_deltas(t, ch, gamma0, Vs, tp);
+	else
+		res.delta = coupled_deltat(t, ch, gamma0, Vt, tp);
+
+
+	std::cout << "gamma0  " << std::setprecision(12) << gamma0 << "   ch   " << std::setprecision(12) << ch << "  Tc  " << std::setprecision(12) << t << "  dt/ds " << std::setprecision(12) << res.delta << endl;
+
+	return res;
+}
+
+struct Coupled_Result {
+	double gamma0;
+	Result_Triple singlet, tryplet;
+};
+
+Coupled_Result coupled_get_res_both(double Vs, double Vt, double nl, double tp, double gamma0, double sxc, double syc, double pts, double ptt, double pchs, double pcht)
+{
+	double t, ch, chp, tol = 0.0000001;
+	double msxt, msyt, mtxt, mtyt, hs, ht, th, xs, ys, xt, yt, dt;
+	bool flag1 = true;
+	Coupled_Result res;
+	int c = 0, i = 0;
+	double ta[10];
+	double sig;
+
+	if (ptt > pts)
+		sig = 1.0;
+	else
+		sig = -1.0;
+
+	for (int i = 0; i < 10; i++)
+	{
+		ta[i] = 0.0;
+	}
+	th = abs(ptt - pts) * 0.1;
+	t = 0.0;
+	dt = 0.0;
+	msxt = pts - sig * th;
+	hs = th;
+	double mh = (pcht - pchs) * 0.001;
+
+	ch = occ_solve1D_zbr(sc_occ, sxc, syc, tol, msxt, gamma0, nl, tp);
+	xs = coupled_gap(msxt, ch, gamma0, Vs, Vt, tp);
+
+	do
+	{
+		i++;
+		msyt = msxt + sig * hs;
+		ch = occ_solve1D_zbr(sc_occ, sxc, syc, tol, msyt, gamma0, nl, tp);
+		ys = coupled_gap(msyt, ch, gamma0, Vs, Vt, tp);
+		//cout<<"find s "<<msyt<<" "<<ys<<endl;
+		if (xs * ys < 0)
+		{
+			t = coupled_solve1D_zbr(coupled_gap, msxt, msyt, tol, gamma0, Vs, Vt, sxc, syc, nl, tp);
+		}
+		else
+		{
+			xs = ys;
+			msxt = msyt;
+		}
+
+	} while (t == 0.0 && i < 100);
+
+	if (t != 0.0)
+	{
+		ch = occ_solve1D_zbr(sc_occ, sxc, syc, tol, t, gamma0, nl, tp);
+		//cout<<"ch "<<ch<<endl;
+		chp = 0.0;
+
+		while (abs(ch - chp) > tol && t != 0.0 && flag1)
+		{
+			chp = ch;
+			t = coupled_solve1D_zbr(coupled_gap, msxt, msyt, tol, gamma0, Vs, Vt, sxc, syc, nl, tp);
+			ch = occ_solve1D_zbr(sc_occ, sxc, syc, tol, t, gamma0, nl, tp);
+
+			for (int i = 0; i < c; i++)
+			{
+				if (ta[i] == t)
+					flag1 = false;
+			}
+			ta[c] = t;
+			c = (c + 1) % 10;
+		}
+		res.gamma0 = gamma0;
+		res.singlet.T = t;
+		res.singlet.mi = ch;
+		res.singlet.delta = coupled_deltas(t, ch, gamma0, Vs, tp);
+	}
+
+	else {
+		cout << i << endl;
+		res = { 0 };
+		return res;
+	}
+
+
+	std::cout << "singlet   :" << std::setprecision(12) << gamma0 << " " << std::setprecision(12) << t << " " << std::setprecision(12) << ch << " " << std::setprecision(12) << res.singlet.delta << endl;
+
+	for (int i = 0; i < 10; i++)
+	{
+		ta[i] = 0.0;
+	}
+	c = 0;
+	t = 0.0;
+	i = 0;
+	ht = th * 0.1;
+	mtyt = ptt + sig * ht;
+	//cout<<"sm0: "<<mtyt<<" "<<th<<" "<<ptt<<" "<<sig<<endl;
+	ch = occ_solve1D_zbr(sc_occ, sxc, syc, tol, mtyt, gamma0, nl, tp);
+	yt = coupled_gap(mtyt, ch, gamma0, Vs, Vt, tp);
+	//cout<<"find t "<<mtyt<<" "<<yt<<endl;
+	do
+	{
+		i++;
+		mtxt = mtyt - sig * ht;
+
+		ch = occ_solve1D_zbr(sc_occ, sxc, syc, tol, mtxt, gamma0, nl, tp);
+		xt = coupled_gap(mtxt, ch, gamma0, Vs, Vt, tp);
+		//cout<<"find t "<<mtxt<<" "<<xt<<endl;
+		if (xt * yt < 0.0)
+		{
+			//cout<<"sm0: "<<mtxt<<" "<<mtyt<<endl;
+			t = coupled_solve1D_zbr(coupled_gap, mtxt, mtyt, tol, gamma0, Vs, Vt, sxc, syc, nl, tp);
+		}
+		else
+		{
+			yt = xt;
+			mtyt = mtxt;
+		}
+		//cout<<"trip yt "<<yt<<" i "<<i<<endl;
+	} while (t == 0.0 && i < 1000);
+
+	if (t != 0.0)
+	{
+		ch = occ_solve1D_zbr(sc_occ, sxc, syc, tol, t, gamma0, nl, tp);
+		chp = 0.0;
+		flag1 = true;
+
+		while (abs(ch - chp) > tol && t != 0.0 && flag1)
+		{
+			chp = ch;
+			t = coupled_solve1D_zbr(coupled_gap, mtxt, mtyt, tol, gamma0, Vs, Vt, sxc, syc, nl, tp);
+			ch = occ_solve1D_zbr(sc_occ, sxc, syc, tol, t, gamma0, nl, tp);
+			//cout<<"mix_t t,ch "<<t<<" "<<ch<<endl;
+			for (int i = 0; i < c; i++)
+			{
+				if (ta[i] == t)
+					flag1 = false;
+			}
+			ta[c] = t;
+			c = (c + 1) % 10;
+		}
+
+		res.tryplet.T = t;
+		res.tryplet.mi = ch;
+		res.tryplet.delta = coupled_deltat(t, ch, gamma0, Vt, tp);
+	}
+	else
+	{
+		cout << i << endl;
+		res = { 0 };
+	}
+
+
+	std::cout << "tryplet   :" << std::setprecision(12) << gamma0 << " " << std::setprecision(12) << t << " " << std::setprecision(12) << ch << " " << std::setprecision(12) << res.tryplet.delta << endl;
+	return res;
+}
+
+
+double eq_gamma0_fs(double gamma0, double Vs, double Vt, double nl, double tp, double sxc, double syc, double pts, double ptt, double pchs, double pcht, bool isfromsinglet)
+{
+	Coupled_Result res;
+	double dspdt, mi;
+
+	res = coupled_get_res_both(Vs, Vt, nl, tp, gamma0, sxc, syc, pts, ptt, pchs, pcht);
+
+	if (isfromsinglet)
+	{
+		dspdt = 1.0 / res.singlet.delta;
+		mi = res.singlet.mi;
+	}
+	else
+	{
+		dspdt = res.tryplet.delta;
+		mi = res.tryplet.mi;
+	}
+
+	return  -pow(mi, 2.0) / 4.0 - pow(dspdt, 2.0) + 1.0 + mi * gamma0 / 2.0 * abs(dspdt) - pow(gamma0, 2.0) / 4.0 * pow(dspdt, 2.0);
+;
+}
+
+double eq_gamma0_bz(double gamma0, double Vs, double Vt, double nl, double tp, double sxc, double syc, double pts, double ptt, double pchs, double pcht, bool isfromsinglet)
+{
+
+	Coupled_Result res;
+	double dspdt;
+	res = coupled_get_res_both(Vs, Vt, nl, tp, gamma0, sxc, syc, pts, ptt, pchs, pcht);
+	if (isfromsinglet)
+	{
+		dspdt = 1.0 / res.singlet.delta;
+	}
+	else
+	{
+		dspdt = res.tryplet.delta;
+	}
+
+	return pow(dspdt, 2.0) - 1.0;
+}
+
+void coupled_tabulate1D(string fname,Result_Triple (*f)(double,double,double,double,double,double,double,double,double,bool),double a, double b, int N,double Vs,double Vt,double nl,double tp,double xt,double yt,double xc,double yc,bool isfromsinglet)
+{
+    fstream outfile(fname,fstream::out);
+    double g0=a;
+    double h=(b-a)/(N-1);
+    Result_Triple tmp;
+
+    if(!outfile.good())
+    {
+        cout<<"nie otwarty plik!"<<endl;
+    }
+
+    while(h>0.000000001)
+    {
+        g0=g0+h;
+        tmp=f(Vs,Vt,nl,tp,g0,xt,yt,xc,yc,isfromsinglet);
+        if(tmp.T == 0.0)
+        {
+            g0=g0-h;
+            h=h/2.01;
+        }
+        else
+        {
+            outfile<<std::setprecision(12)<<g0<<" "<<std::setprecision(12)<<tmp.T<<" "<<std::setprecision(12)<<tmp.mi<<endl;
+        }
+
+    }
+
+    outfile.close();
+}
+
 int main()
 {
 	double xt = 0.000000001, yt = 10.0, xc = 0.0000001, yc = 5.0;
 	double tp = 0.0, nl = 1.2;
-	double Vs = 1.2;
+	double Vs = 1.2, Vt = 1.5;
 
-	sc_tabulate1D("tryplet.txt", tryplet_get_res, 0.01, 0.5, 100, Vs, tp, nl, xt, yt, xc, yc); //fname,f,a,b,N,Vs,tp,nl,xt,yt,xc,yc 
+	//sc_tabulate1D("tryplet.txt", tryplet_get_res, 0.01, 0.5, 100, Vs, tp, nl, xt, yt, xc, yc); //fname,f,a,b,N,Vs,tp,nl,xt,yt,xc,yc 
+	coupled_tabulate1D("mixed.txt", coupled_get_res, 0.01, 0.5, 100, Vs, Vt, nl, tp, xt, yt, xc, yc, true);
 	return 0;
 }
