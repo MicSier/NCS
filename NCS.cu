@@ -18,8 +18,8 @@ using namespace std;
 const double h_pi = 3.141592653597932384;
 __constant__ double pi_device = 3.141592653597932384;
 const double pi = 3.141592653597932384;
-const double delta = 0.0000000001;
-const int n = 10000, k = 5;
+const double delta = 0.0000000000000001;
+const int n = 1000, k = 5;
 
 const double xk[] = { 0.9061798459386641,-0.9061798459386641,0.538469310105683,-0.5384693101056829,0.0 };
 const double ak[] = { 0.2369268850561876,0.2369268850561876,0.47862867049936647,0.47862867049936586,0.5688888888888889 };
@@ -247,183 +247,93 @@ double sc_occ(double mi, double Tc, double gamma0, double nl, double tp)
 
 typedef double (*Gap_Func)(double, double, double, double, double);
 
+#define ZBRENT(yaval,ybval,faval,fbval,returnnone,...) ZBRENT_IMPL(yaval,ybval,faval,fbval,returnnone,__VA_ARGS__)
+#define ZBRENT_IMPL(yaval,ybval,faval,fbval,returnnone, returnb) \
+    int itmax = 100; \
+    double d, r, s, e, p, q, xm, tol1, c, fa, fb, fc; \
+	y = yaval;	\
+    fa = faval; \
+	y = ybval;	\
+    fb = fbval; \
+    if (fa * fb > 0.0) { \
+        cout << "zbr err: Same signs! fa " << fa << " fb " << fb << " a, b " << a << " " << b << endl; \
+        return returnnone; \
+    } else { \
+        c = b; \
+        fc = fb; \
+        for (int i = 1; i < itmax; i++) { \
+            if (fb * fc > 0.0) { \
+                c = a; \
+                fc = fa; \
+                d = b - a; \
+                e = d; \
+            } \
+            if (abs(fc) < abs(fb)) { \
+                a = b; \
+                b = c; \
+                c = a; \
+                fa = fb; \
+                fb = fc; \
+                fc = fa; \
+            } \
+            tol1 = 2.0 * tol * abs(b) + 0.5 * tol; \
+            xm = 0.5 * (c - b); \
+            if ((abs(xm) < tol1) || (fb == 0)) \
+				do{ return returnb; } while(0); \
+            if ((abs(e) > tol1) && (abs(fa) > abs(fb))) { \
+                s = fb / fa; \
+                if (a == c) { \
+                    p = 2.0 * xm * s; \
+                    q = 1.0 - s; \
+                } else { \
+                    q = fa / fc; \
+                    r = fb / fc; \
+                    p = s * (2.0 * xm * q * (q - r) - (b - a) * (r - 1.0)); \
+                    q = (q - 1.0) * (r - 1.0) * (s - 1.0); \
+                } \
+                if (p > 0.0) q = -q; \
+                p = abs(p); \
+                if (2.0 * p < min(3.0 * xm * q - abs(tol1 * q), abs(e * q))) { \
+                    e = d; \
+                    d = p / q; \
+                } else { \
+                    d = xm; \
+                    e = d; \
+                } \
+            } else { \
+                d = xm; \
+                e = d; \
+            } \
+            a = b; \
+            fa = fb; \
+            if (abs(d) > tol1) b += d; \
+            else { \
+                if (xm > 0.0) b = b + abs(tol1); \
+                else b = b - abs(tol1); \
+            } \
+			y = ybval;	\
+            fb = fbval; \
+        } \
+        cout << "zbr exceeding max iterations!" << endl; \
+        do{ return returnb; } while(0); \
+    } \
 
 double occ_solve1D_zbr(Gap_Func f, double a, double b, double tol, double T, double gamma0, double nl, double tp)
 {
-	int itmax = 100;
-	double d, r, s, e, p, q, xm, tol1, c, fa, fb, fc;
-
-	fa = f(a, T, gamma0, nl, tp);
-	fb = f(b, T, gamma0, nl, tp);
-
-	if (fa * fb > 0.0)
-	{
-		cout << "occ_zbr err:Takie same znaki!  fa  " << fa << " fb  " << fb << " tc,g0,a,b  " << T << "  " << gamma0 << "  " << a << "  " << b << endl;
-		return 0.0;
-	}
-	c = b;
-	fc = fb;
-	for (int i = 1; i < itmax; i++)
-	{
-		if (fb * fc > 0.0)
-		{
-			c = a;
-			fc = fa;
-			d = b - a;
-			e = d;
-		}
-		if (abs(fc) < abs(fb))
-		{
-			a = b;
-			b = c;
-			c = a;
-			fa = fb;
-			fb = fc;
-			fc = fa;
-		}
-		tol1 = 2.0 * delta * abs(b) + 0.5 * tol;
-		xm = 0.5 * (c - b);
-		if ((abs(xm) < tol1) || (fb == 0)) return b;
-		if ((abs(e) > tol1) && (abs(fa) > abs(fb)))
-		{
-			s = fb / fa;
-			if (a == c)
-			{
-				p = 2.0 * xm * s;
-				q = 1.0 - s;
-			}
-			else
-			{
-				q = fa / fc;
-				r = fb / fc;
-				p = s * (2.0 * xm * q * (q - r) - (b - a) * (r - 1.0));
-				q = (q - 1.0) * (r - 1.0) * (s - 1.0);
-			}
-			if (p > 0.0) q = -q;
-			p = abs(p);
-			if (2.0 * p < min(3.0 * xm * q - abs(tol1 * q), abs(e * q)))
-			{
-				e = d;
-				d = p / q;
-			}
-			else
-			{
-				d = xm;
-				e = d;
-			}
-		}
-		else
-		{
-			d = xm;
-			e = d;
-		}
-		a = b;
-		fa = fb;
-		if (abs(d) > tol1) b += d;
-		else
-		{
-			if (xm > 0.0) b = b + abs(tol1);
-			else b = b - abs(tol1);
-		}
-		fb = f(b, T, gamma0, nl, tp);
-
-
-	}
-	cout << "zbr exeding max iteractions!" << endl;
-	return b;
+	double y = T;
+	ZBRENT(y, y, f(a, y, gamma0, nl, tp), f(b, y, gamma0, nl, tp), 0.0, b);
 }
 
 struct Result_Pair {
+	bool some;
 	double T;
 	double mi;
 };
 
 Result_Pair sc_solve1D_zbr(Gap_Func f, double a, double b, double tol, double gamma0, double Vs, double sxc, double syc, double nl, double tp)
 {
-	int itmax = 100;
-	double d, r, s, e, p, q, xm, tol1, c, fa, fb, fc, eps = 3.0e-8, mi;
-	mi = occ_solve1D_zbr(sc_occ, sxc, syc, tol, a, gamma0, nl, tp);
-	fa = f(a, mi, gamma0, Vs, tp);
-	mi = occ_solve1D_zbr(sc_occ, sxc, syc, tol, b, gamma0, nl, tp);
-	fb = f(b, mi, gamma0, Vs, tp);
-	Result_Pair res = { b, mi };
-
-	if (fa * fb > 0.0)
-	{
-		cout << "sc_zbr err:Takie same znaki!  fa  " << fa << " fb  " << fb << " mi,g0,a,b  " << mi << "  " << gamma0 << "  " << a << "  " << b << endl;
-		return { 0.0,0.0 };
-	}
-	c = b;
-	fc = fb;
-	for (int i = 1; i < itmax; i++)
-	{
-		if (fb * fc > 0.0)
-		{
-			c = a;
-			fc = fa;
-			d = b - a;
-			e = d;
-		}
-		if (abs(fc) < abs(fb))
-		{
-			a = b;
-			b = c;
-			c = a;
-			fa = fb;
-			fb = fc;
-			fc = fa;
-		}
-		tol1 = 2.0 * eps * abs(b) + 0.5 * tol;
-		xm = 0.5 * (c - b);
-		if ((abs(xm) < tol1) || (fb == 0)) return res;
-		if ((abs(e) > tol1) && (abs(fa) > abs(fb)))
-		{
-			s = fb / fa;
-			if (a == c)
-			{
-				p = 2.0 * xm * s;
-				q = 1.0 - s;
-			}
-			else
-			{
-				q = fa / fc;
-				r = fb / fc;
-				p = s * (2.0 * xm * q * (q - r) - (b - a) * (r - 1.0));
-				q = (q - 1.0) * (r - 1.0) * (s - 1.0);
-			}
-			if (p > 0.0) q = -q;
-			p = abs(p);
-			if (2.0 * p < min(3.0 * xm * q - abs(tol1 * q), abs(e * q)))
-			{
-				e = d;
-				d = p / q;
-			}
-			else
-			{
-				d = xm;
-				e = d;
-			}
-		}
-		else
-		{
-			d = xm;
-			e = d;
-		}
-		a = b;
-		fa = fb;
-		if (abs(d) > tol1) b += d;
-		else
-		{
-			if (xm > 0.0) b = b + abs(tol1);
-			else b = b - abs(tol1);
-		}
-		mi = occ_solve1D_zbr(sc_occ, sxc, syc, tol, b, gamma0, nl, tp);
-		fb = f(b, mi, gamma0, Vs, tp);
-		res = { b,mi };
-	}
-
-	cout << "zbr exeding max iteractions!" << endl;
-	return res;
+	double y;
+	ZBRENT(occ_solve1D_zbr(sc_occ, sxc, syc, tol, a, gamma0, nl, tp), occ_solve1D_zbr(sc_occ, sxc, syc, tol, b, gamma0, nl, tp), f(a, y, gamma0, Vs, tp), f(b, y, gamma0, Vs, tp), { false }, { true, b,y });
 }
 
 Result_Pair singlet_get_res(double Vs, double nl, double tp, double gamma0, double xt, double yt, double xc, double yc)
@@ -531,11 +441,10 @@ double fs(double gamma0, double mi, double lambda)
 	return a;
 }
 
-
 void sc_tabulate1D(string fname, Result_Pair(*f)(double, double, double, double, double, double, double, double), double a, double b, int N, double Vs, double tp, double nl, double xt, double yt, double xc, double yc)
-{
-	fstream outfile(fname, fstream::out);
-	double g0 = a;
+{ 
+	fstream outfile(fname, fstream::out); 
+	double g0 = a; 
 	double h = (b - a) / (N - 1);
 
 	if (!outfile.good())
@@ -695,6 +604,7 @@ double coupled_solve1D_zbr(double (*f)(double, double, double, double, double, d
 	cout << "zbr exeding max iteractions!" << endl;
 	return b;
 }
+
 Result_Triple coupled_get_res(double Vs, double Vt, double nl, double tp, double gamma0, double sxt, double syt, double sxc, double syc, bool isfromsinglet)
 {
 	double t, ch, chp, tol = 0.00001;
@@ -948,7 +858,6 @@ Coupled_Result coupled_get_res_both(double Vs, double Vt, double nl, double tp, 
 	return res;
 }
 
-
 double eq_gamma0_fs(double gamma0, double Vs, double Vt, double nl, double tp, double sxc, double syc, double pts, double ptt, double pchs, double pcht, bool isfromsinglet)
 {
 	Coupled_Result res;
@@ -1012,7 +921,7 @@ void coupled_tabulate1D(string fname,Result_Triple (*f)(double,double,double,dou
         }
         else
         {
-            outfile<<std::setprecision(12)<<g0<<" "<<std::setprecision(12)<<tmp.T<<" "<<std::setprecision(12)<<tmp.mi<<endl;
+            outfile<<std::setprecision(12)<<g0<<" "<<std::setprecision(12)<<tmp.T<<" "<<std::setprecision(12)<<tmp.mi<<std::setprecision(12)<<tmp.delta<<endl;
         }
 
     }
@@ -1023,10 +932,10 @@ void coupled_tabulate1D(string fname,Result_Triple (*f)(double,double,double,dou
 int main()
 {
 	double xt = 0.000000001, yt = 10.0, xc = 0.0000001, yc = 5.0;
-	double tp = 0.0, nl = 1.2;
-	double Vs = 1.2, Vt = 1.5;
+	double tp = 0.0, nl = 1.1;
+	double Vs = 2, Vt = 2;
 
 	//sc_tabulate1D("tryplet.txt", tryplet_get_res, 0.01, 0.5, 100, Vs, tp, nl, xt, yt, xc, yc); //fname,f,a,b,N,Vs,tp,nl,xt,yt,xc,yc 
-	coupled_tabulate1D("mixed.txt", coupled_get_res, 0.01, 0.5, 100, Vs, Vt, nl, tp, xt, yt, xc, yc, true);
+	coupled_tabulate1D("mixed.txt", coupled_get_res, 0.01, 5.0, 10, Vs, Vt, nl, tp, xt, yt, xc, yc, true);
 	return 0;
 }
