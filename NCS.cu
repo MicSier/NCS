@@ -19,10 +19,10 @@ const double h_pi = 3.141592653597932384;
 __constant__ double pi_device = 3.141592653597932384;
 const double pi = 3.141592653597932384;
 const double delta = 0.0000000000000001;
-const int n = 1000, k = 5;
+const int n = 10000, k = 5;
 
-const double xk[] = { 0.9061798459386641,-0.9061798459386641,0.538469310105683,-0.5384693101056829,0.0 };
-const double ak[] = { 0.2369268850561876,0.2369268850561876,0.47862867049936647,0.47862867049936586,0.5688888888888889 };
+__constant__ double xk[] = { 0.9061798459386641,-0.9061798459386641,0.538469310105683,-0.5384693101056829,0.0 };
+__constant__ double ak[] = { 0.2369268850561876,0.2369268850561876,0.47862867049936647,0.47862867049936586,0.5688888888888889 };
 
 typedef double (*Under_Integral_Func)(double, double, double, double, double);
 
@@ -183,7 +183,7 @@ __device__ double coupled_fpdk2(double x, double Tc, double mi, double gamma0, d
 __device__ Under_Integral_Func uif_array[] = { sc_uifunc, singlet_uifunt, tryplet_uifunt, coupled_fp, coupled_fmdk, coupled_fpdk2 };
 enum UI_Func_Index { i_sc_uifunc = 0, i_singlet_uifunt = 1, i_tryplet_uifunt = 2, i_coupled_fp = 3, i_coupled_fmdk = 4, i_coupled_fpdk2 = 5 };
 
-__global__ void integrateKernel(double* result, UI_Func_Index i_f, double a, double h, int n, double* xk, double* ak, double Tc, double mi, double gamma0, double tp) {
+__global__ void integrateKernel(double* result, UI_Func_Index i_f, double a, double h, int n, double Tc, double mi, double gamma0, double tp) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (idx < n) {
@@ -194,26 +194,72 @@ __global__ void integrateKernel(double* result, UI_Func_Index i_f, double a, dou
 	}
 }
 
+__global__ void reduce(double *input, double *output, unsigned int n)
+{
+    unsigned int block_size = blockDim.x;
+    unsigned int thread_id = threadIdx.x;
+    unsigned int block_id = blockIdx.x;
+
+    unsigned int chunk_size = block_size * 2;
+
+    unsigned int block_start = block_id * chunk_size;
+    
+    unsigned int left;  
+	unsigned int right;    
+	unsigned int threads = block_size;
+    for (unsigned int stride = 1; stride < chunk_size; stride *= 2, threads /= 2)
+    {
+        left = block_start + thread_id * (stride * 2);
+        right = left + stride;
+
+        if (thread_id < threads  && right < n) {
+            input[left] += input[right];
+        }
+         __syncthreads();
+    }
+
+    if (!thread_id)
+    {
+        output[block_id] = input[block_start];
+    }
+}
+
+typedef struct {
+    int max_threads_per_block;
+    dim3 grid_size;
+    dim3 block_size;
+} Cuda_Config;
+
+Cuda_Config cuda_configure(int rows)
+{
+	int max_threads;
+	cudaDeviceProp prop;
+	cudaGetDeviceProperties(&prop, 0); // Assumes device 0
+	cudaDeviceGetAttribute(&max_threads, cudaDevAttrMaxThreadsPerBlock, 0);
+	int threads = max_threads;
+	int blocks_x = rows / threads + (rows % threads != 0);
+
+	dim3 grid_size(blocks_x);
+	dim3 block_size(threads);
+	Cuda_Config config = { max_threads, grid_size, block_size };
+
+	return config;
+}
+
+Cuda_Config integration_cuda_config = cuda_configure(n*k);
+
 double sc_integrate1D_gl_gpu(UI_Func_Index i_f, double a, double b, double Tc, double mi, double gamma0, double tp) {
 	double h = (b - a) / (n);
-	// Host variables
-	double* h_result = new double[n * k];
 
 	// Device variables
 	double* d_result;
-	double* d_xk;
-	double* d_ak;
+	double* d_part;
+	double* dev_temp;
 	cudaMalloc((void**)&d_result, n * k * sizeof(double));
-	cudaMalloc((void**)&d_xk, k * sizeof(double));
-	cudaMalloc((void**)&d_ak, k * sizeof(double));
-
-	// Copy data to device
-	cudaMemcpy(d_xk, xk, k * sizeof(double), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_ak, ak, k * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMalloc((void**)&d_part, n * k * sizeof(double));
 
 	// Launch the kernel
-	int num_blocks = (n * k + BLOCK_SIZE - 1) / BLOCK_SIZE;
-	integrateKernel << <num_blocks, BLOCK_SIZE >> > (d_result, i_f, a, h, n * k, d_xk, d_ak, Tc, mi, gamma0, tp);
+	integrateKernel << <integration_cuda_config.grid_size, integration_cuda_config.block_size >> > (d_result, i_f, a, h, n * k, Tc, mi, gamma0, tp);
 
 	cudaError_t cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess) {
@@ -223,16 +269,31 @@ double sc_integrate1D_gl_gpu(UI_Func_Index i_f, double a, double b, double Tc, d
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaDeviceSynchronize failed: %s\n", cudaGetErrorString(cudaStatus));
 	}
-	// Copy the result back to host
-	cudaMemcpy(h_result, d_result, n * k * sizeof(double), cudaMemcpyDeviceToHost);
 
-	double result = accumulate(h_result, h_result + n * k, 0.0) * h * 0.5;
+	int remaining = n * k;
+	int threads_needed = n * k / 2;
+	int blocks = threads_needed / integration_cuda_config.max_threads_per_block + (threads_needed % integration_cuda_config.max_threads_per_block > 0 ? 1 : 0); 
+	while (remaining > 1)
+	{
+		reduce << <blocks, integration_cuda_config.max_threads_per_block>> > (d_result, d_part, remaining);
+		remaining = blocks;
+		threads_needed = 2;
+		blocks = threads_needed / integration_cuda_config.max_threads_per_block + (threads_needed % integration_cuda_config.max_threads_per_block > 0 ? 1 : 0); 
+
+		if (remaining > 1)
+		{
+			dev_temp = d_result;
+			d_result = d_part;
+			d_part = dev_temp;
+		}
+	}
+	double result;
+	cudaStatus = cudaMemcpy(&result, d_part, sizeof(double), cudaMemcpyDeviceToHost);
+
 	// Cleanup
 	cudaFree(d_result);
-	cudaFree(d_xk);
-	cudaFree(d_ak);
-	delete[] h_result;
-	return result;
+	cudaFree(d_part);
+	return result*h*0.5;
 }
 
 double singlet_gap(double Tc, double mi, double gamma0, double Vs, double tp)
@@ -921,7 +982,7 @@ void coupled_tabulate1D(string fname,Result_Triple (*f)(double,double,double,dou
         }
         else
         {
-            outfile<<std::setprecision(12)<<g0<<" "<<std::setprecision(12)<<tmp.T<<" "<<std::setprecision(12)<<tmp.mi<<std::setprecision(12)<<tmp.delta<<endl;
+            outfile<<std::setprecision(12)<<g0<<" "<<std::setprecision(12)<<tmp.T<<" "<<std::setprecision(12)<<tmp.mi<<" "<<std::setprecision(12) << tmp.delta << endl;
         }
 
     }
