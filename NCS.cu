@@ -12,17 +12,14 @@
 #include <string>
 #include <fstream>
 
+#include "gl.h"
+
 using namespace std;
 
-#define BLOCK_SIZE 16
-const double h_pi = 3.141592653597932384;
 __constant__ double pi_device = 3.141592653597932384;
 const double pi = 3.141592653597932384;
 const double delta = 0.0000000000000001;
-const int n = 10000, k = 5;
-
-__constant__ double xk[] = { 0.9061798459386641,-0.9061798459386641,0.538469310105683,-0.5384693101056829,0.0 };
-__constant__ double ak[] = { 0.2369268850561876,0.2369268850561876,0.47862867049936647,0.47862867049936586,0.5688888888888889 };
+const int n = 10000;
 
 typedef double (*Under_Integral_Func)(double, double, double, double, double);
 
@@ -187,8 +184,8 @@ __global__ void integrateKernel(double* result, UI_Func_Index i_f, double a, dou
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (idx < n) {
-		int j = idx % 5;
-		int i = idx / 5;
+		int j = idx % d_k;
+		int i = idx / d_k;
 		double z = ((2.0 * a + h * (2.0 * i + 1.0)) - h * xk[j]) * 0.5;
 		result[idx] = ak[j] * ((uif_array[i_f])(z, Tc, mi, gamma0, tp));
 	}

@@ -3,3 +3,6 @@
 
 #Ignore VS files
 \.vs
+
+\tools\"prepare gauss legendre"\.vs
+\tools\"prepare gauss legendre"\x64
