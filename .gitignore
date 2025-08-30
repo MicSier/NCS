@@ -1,8 +1,13 @@
 # Ignore build arifacts
 \x64
-
+\NCS
+\NCS\examples\coupled\x64
+\NCS\examples\singlet\x64
+\NCS\examples\tryplet\x64
+\NCS\examples\IntegrationBenchmark\x64
 #Ignore VS files
 \.vs
+*.user
 
 \tools\"prepare gauss legendre"\.vs
 \tools\"prepare gauss legendre"\x64

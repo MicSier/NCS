@@ -1,5 +1,5 @@
 #define NCS_IMPLEMENTATION
-#include "NCS.h"
+#include "../../NCS.h"
 
 int main()
 {
