@@ -26,8 +26,8 @@
 
 using namespace std;
 
-__constant__ double pi_device = 3.141592653597932384;
-const double pi = 3.141592653597932384;
+__constant__ double pi_device = 3.14159265358979323846;
+const double pi = 3.14159265358979323846;
 const double delta = 0.0000000000000001;
 const int n = 10000;
 
