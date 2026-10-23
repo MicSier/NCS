@@ -3,7 +3,8 @@
 //  2. sc_reduce_sum_gpu (reduce_custom + its host loop) on many sizes,
 //  3. reduceShared (currently unused by the library),
 //  4. sc_integrate1D_gl_gpu for every integrand vs. a serial long-double
-//     composite Gauss-Legendre sum over the same panels.
+//     composite Gauss-Legendre sum over the same panels,
+//  5. continuity of the integrands through their xi = 0 special case.
 // Build: python3 cpu/cudaify.py && g++ -std=c++17 -O2 -fopenmp -x c++ -Icpu build-cpu/cpu/tests/test_kernels.cu
 #define NCS_IMPLEMENTATION
 #include "../../NCS.h"
@@ -98,6 +99,21 @@ int main() {
         double r2 = reduce_shared_full(v, 256);
         std::snprintf(label, sizeof label, "reduceShared    n=%d (256 threads)", sz);
         check(std::fabs(r2 - (double)exact) <= 1e-12 * std::max(1.0, (double)std::fabs(exact)), label, r2, (double)exact);
+    }
+
+    // 5. integrands are continuous through their xi = 0 special-case branch
+    {
+        const double x = 1.1, T = 0.01, g0 = 0.3, tp = 0.1;
+        const double mu = ek(x, tp) - g(x, g0);  // puts xi_- exactly (to ~1e-16) on the Fermi level at x
+        struct { Under_Integral_Func f; const char* name; } F[] = {
+            { singlet_uifunt, "singlet_uifunt" }, { coupled_fp, "coupled_fp" },
+            { coupled_fmdk, "coupled_fmdk" }, { coupled_fpdk2, "coupled_fpdk2" } };
+        for (auto& f : F) {
+            double at = f.f(x, T, mu, g0, tp), near = f.f(x + 1e-9, T, mu, g0, tp);
+            char label[96];
+            std::snprintf(label, sizeof label, "%s continuous at xi_- = 0", f.name);
+            check(std::fabs(at - near) <= 1e-6 * std::fabs(near), label, at, near);
+        }
     }
 
     // 4. full GPU integration pipeline vs serial quadrature

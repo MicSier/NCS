@@ -207,12 +207,12 @@ __device__ double singlet_uifunt(double x, double Tc, double mi, double gamma0, 
 	double res;
 
 	if (abs(ksim) < 0.0000000000001)
-		res = 1.0 / (2.0 * Tc);
+		res = 1.0 / (4.0 * Tc);
 	else
 		res = tanh(ksim / (2.0 * Tc)) / (2.0 * ksim);
 
 	if (abs(ksip) < 0.0000000000001)
-		res += 1.0 / (2.0 * Tc);
+		res += 1.0 / (4.0 * Tc);
 	else
 		res += tanh(ksip / (2.0 * Tc)) / (2.0 * ksip);
 
@@ -290,12 +290,12 @@ __device__ double coupled_fp(double x, double Tc, double mi, double gamma0, doub
 	double res, eps = 0.000000000001;
 
 	if (abs(ksim) < eps)
-		res = 1.0 / (2.0 * Tc);
+		res = 1.0 / (4.0 * Tc);
 	else
 		res = tanh(ksim / (2.0 * Tc)) / (2.0 * ksim);
 
 	if (abs(ksip) < eps)
-		res += 1.0 / (2.0 * Tc);
+		res += 1.0 / (4.0 * Tc);
 	else
 		res += tanh(ksip / (2.0 * Tc)) / (2.0 * ksip);
 
@@ -308,12 +308,12 @@ __device__ double coupled_fmdk(double x, double Tc, double mi, double gamma0, do
 	double res, eps = 0.000000000001;
 
 	if (abs(ksim) < eps)
-		res = 1.0 / (2.0 * Tc);
+		res = 1.0 / (4.0 * Tc);
 	else
 		res = tanh(ksim / (2.0 * Tc)) / (2.0 * ksim);
 
 	if (abs(ksip) < eps)
-		res -= 1.0 / (2.0 * Tc);
+		res -= 1.0 / (4.0 * Tc);
 	else
 		res -= tanh(ksip / (2.0 * Tc)) / (2.0 * ksip);
 
@@ -326,12 +326,12 @@ __device__ double coupled_fpdk2(double x, double Tc, double mi, double gamma0, d
 	double res, eps = 0.000000000001;
 
 	if (abs(ksim) < eps)
-		res = 1.0 / (2.0 * Tc);
+		res = 1.0 / (4.0 * Tc);
 	else
 		res = tanh(ksim / (2.0 * Tc)) / (2.0 * ksim);
 
 	if (abs(ksip) < eps)
-		res += 1.0 / (2.0 * Tc);
+		res += 1.0 / (4.0 * Tc);
 	else
 		res += tanh(ksip / (2.0 * Tc)) / (2.0 * ksip);
 
