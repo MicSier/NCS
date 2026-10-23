@@ -37,19 +37,30 @@ def fermi_points(mu, g0, tp):
     return sorted(p for p in pts if 0.0 < p < np.pi)
 
 
-def integ(f, pts):
-    val, _ = quad(f, 0.0, np.pi, points=pts or None, limit=2000, epsabs=1e-14, epsrel=1e-13)
-    return val
+def integ(f, pts, T):
+    # Breakpoints at the Fermi points and at thermal distances around them, so the
+    # adaptive rule sees every scale of tanh(xi/2T) (without these, quad can stop
+    # early with ~1e-6 errors at T ~ 1e-4).
+    br = set()
+    for p in pts:
+        for d in (0.0, 1.0, 4.0, 16.0, 64.0, 256.0, 1024.0):
+            for s in (-1.0, 1.0):
+                x = p + s * d * T
+                if 0.0 < x < np.pi:
+                    br.add(x)
+    br = sorted(br)
+    edges = [0.0] + br + [np.pi]
+    return sum(quad(f, lo, hi, limit=200, epsabs=1e-15, epsrel=1e-13)[0] for lo, hi in zip(edges[:-1], edges[1:]) if hi > lo)
 
 
 def occupation(T, mu, g0, tp, nl, pts):
     f = lambda x: np.tanh((xi(x, mu, tp) + g(x, g0)) / (2 * T)) + np.tanh((xi(x, mu, tp) - g(x, g0)) / (2 * T))
-    return 1.0 - nl - integ(f, pts) / (2.0 * np.pi)
+    return 1.0 - nl - integ(f, pts, T) / (2.0 * np.pi)
 
 
 def singlet_gap(T, mu, g0, tp, V, pts):
     f = lambda x: h(xi(x, mu, tp) + g(x, g0), T) + h(xi(x, mu, tp) - g(x, g0), T)
-    return 1.0 - V / (2.0 * np.pi) * integ(f, pts)
+    return 1.0 - V / (2.0 * np.pi) * integ(f, pts, T)
 
 
 def tryplet_gap(T, mu, g0, tp, V, pts):
@@ -65,7 +76,7 @@ def tryplet_gap(T, mu, g0, tp, V, pts):
         u2 = (vg / e) * (hp - hm) if abs(e) > 1e-9 else 2 * vg * (
             (1 - np.tanh(vg / (2 * T)) ** 2) / (4 * T * vg) - np.tanh(vg / (2 * T)) / (2 * vg * vg))
         return u1 * d2 + u2 * pare
-    return 1.0 - V / (2.0 * np.pi) * integ(f, pts)
+    return 1.0 - V / (2.0 * np.pi) * integ(f, pts, T)
 
 
 def solve(kind, g0, T0, mu0, V, nl, tp):

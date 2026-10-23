@@ -21,3 +21,4 @@ build-cpu/
 singlet.txt
 tryplet.txt
 mixed.txt
+__pycache__/
