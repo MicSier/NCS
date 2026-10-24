@@ -2,6 +2,8 @@
 #ifndef NCS_H_
 #define NCS_H_
 
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <fstream>
 #include <iomanip>
@@ -398,10 +400,15 @@ __global__ void reduce_custom(double *input, double *output, unsigned int n)
 
 Cuda_Config cuda_configure(int rows)
 {
-	int max_threads;
-	cudaDeviceProp prop;
-	cudaGetDeviceProperties(&prop, 0); // Assumes device 0
-	cudaDeviceGetAttribute(&max_threads, cudaDevAttrMaxThreadsPerBlock, 0);
+	int device_count = 0, max_threads = 0;
+	cudaError_t err = cudaGetDeviceCount(&device_count);
+	if (err == cudaSuccess && device_count > 0)
+		err = cudaDeviceGetAttribute(&max_threads, cudaDevAttrMaxThreadsPerBlock, 0); // Assumes device 0
+	if (err != cudaSuccess || device_count == 0 || max_threads <= 0) {
+		fprintf(stderr, "NCS: no usable CUDA device (%s). Use `make cpu` to run on the CPU instead.\n",
+			err != cudaSuccess ? cudaGetErrorString(err) : "no devices found");
+		exit(EXIT_FAILURE);
+	}
 	int threads = max_threads;
 	int blocks_x = rows / threads + (rows % threads != 0);
 
