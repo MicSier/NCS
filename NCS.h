@@ -63,8 +63,7 @@ double inline singlet_gap(double Tc, double mi, double gamma0, double Vs, double
 double inline sc_occ(double mi, double Tc, double gamma0, double nl, double tp);
 typedef double (*Gap_Func)(double, double, double, double, double);
 
-#define ZBRENT(yaval,ybval,faval,fbval,returnnone,...) ZBRENT_IMPL(yaval,ybval,faval,fbval,returnnone,__VA_ARGS__)
-#define ZBRENT_IMPL(yaval,ybval,faval,fbval,returnnone, returnb) \
+#define ZBRENT(yaval,ybval,faval,fbval,returnnone,...) \
     int itmax = 100; \
     double d, r, s, e, p, q, xm, tol1, c, fa, fb, fc; \
 	y = yaval;	\
@@ -95,7 +94,7 @@ typedef double (*Gap_Func)(double, double, double, double, double);
             tol1 = 2.0 * tol * abs(b) + 0.5 * tol; \
             xm = 0.5 * (c - b); \
             if ((abs(xm) < tol1) || (fb == 0)) \
-				do{ return returnb; } while(0); \
+				do{ return __VA_ARGS__; } while(0); \
             if ((abs(e) > tol1) && (abs(fa) > abs(fb))) { \
                 s = fb / fa; \
                 if (a == c) { \
@@ -131,7 +130,7 @@ typedef double (*Gap_Func)(double, double, double, double, double);
             fb = fbval; \
         } \
         cout << "zbr exceeding max iterations!" << endl; \
-        do{ return returnb; } while(0); \
+        do{ return __VA_ARGS__; } while(0); \
     } \
 
 double inline occ_solve1D_zbr(Gap_Func f, double a, double b, double tol, double T, double gamma0, double nl, double tp);
