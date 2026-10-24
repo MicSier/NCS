@@ -60,7 +60,8 @@ Cuda_Config inline cuda_configure(int rows);
 
 Cuda_Config integration_cuda_config = cuda_configure(n*k);
 
-double inline sc_integrate1D_gl_gpu(UI_Func_Index i_f, double a, double b, double Tc, double mi, double gamma0, double tp); 
+double inline sc_reduce_sum_gpu(double* d_data, double* d_scratch, int n);
+double inline sc_integrate1D_gl_gpu(UI_Func_Index i_f, double a, double b, double Tc, double mi, double gamma0, double tp);
 double inline singlet_gap(double Tc, double mi, double gamma0, double Vs, double tp);
 double inline sc_occ(double mi, double Tc, double gamma0, double nl, double tp);
 typedef double (*Gap_Func)(double, double, double, double, double);
@@ -419,12 +420,31 @@ Cuda_Config cuda_configure(int rows)
 	return config;
 }
 
+double sc_reduce_sum_gpu(double* d_data, double* d_scratch, int n)
+{
+	const int threads = integration_cuda_config.max_threads_per_block;
+	double* d_in = d_data;
+	double* d_out = d_scratch;
+	int remaining = n;
+	while (remaining > 1)
+	{
+		int pairs = (remaining + 1) / 2;
+		int blocks = (pairs + threads - 1) / threads;
+		reduce_custom <<<blocks, threads>>> (d_in, d_out, remaining);
+		remaining = blocks;
+		std::swap(d_in, d_out);
+	}
+	double result = 0.0;
+	if (n > 0)  
+		cudaMemcpy(&result, d_in, sizeof(double), cudaMemcpyDeviceToHost);
+	return result;
+}
+
 double sc_integrate1D_gl_gpu(UI_Func_Index i_f, double a, double b, double Tc, double mi, double gamma0, double tp) {
 	double h = (b - a) / (n);
 
 	double* d_result;
 	double* d_part;
-	double* dev_temp;
 	cudaMalloc((void**)&d_result, n * sizeof(double));
 	cudaMalloc((void**)&d_part, n * sizeof(double));
 
@@ -439,27 +459,8 @@ double sc_integrate1D_gl_gpu(UI_Func_Index i_f, double a, double b, double Tc, d
 		fprintf(stderr, "cudaDeviceSynchronize failed: %s\n", cudaGetErrorString(cudaStatus));
 	}
 
-	int remaining = n;
-	int threads_needed = n / 2;
-	int blocks = threads_needed / integration_cuda_config.max_threads_per_block + (threads_needed % integration_cuda_config.max_threads_per_block > 0 ? 1 : 0); 
-	while (remaining > 1)
-	{
-		reduce_custom <<<blocks, integration_cuda_config.max_threads_per_block>>> (d_result, d_part, remaining);
-		remaining = blocks;
-		threads_needed = remaining / 2;
-		blocks = threads_needed / integration_cuda_config.max_threads_per_block + (threads_needed % integration_cuda_config.max_threads_per_block > 0 ? 1 : 0); 
+	double result = sc_reduce_sum_gpu(d_result, d_part, n);
 
-		if (remaining > 1)
-		{
-			dev_temp = d_result;
-			d_result = d_part;
-			d_part = dev_temp;
-		}
-	}
-	double result;
-	cudaStatus = cudaMemcpy(&result, d_part, sizeof(double), cudaMemcpyDeviceToHost);
-
-	// Cleanup
 	cudaFree(d_result);
 	cudaFree(d_part);
 	return result*h*0.5;

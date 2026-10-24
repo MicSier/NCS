@@ -1,6 +1,6 @@
 // Checks the CUDA kernels in NCS.h through the CPU emulation:
 //  1. barrier semantics of the emulator itself (shared-memory reversal),
-//  2. reduce_custom with the same host-side loop sc_integrate1D_gl_gpu uses,
+//  2. sc_reduce_sum_gpu (reduce_custom + its host loop) on many sizes,
 //  3. reduceShared (currently unused by the library),
 //  4. sc_integrate1D_gl_gpu for every integrand vs. a serial long-double
 //     composite Gauss-Legendre sum over the same panels.
@@ -27,24 +27,14 @@ __global__ void reverse_shared(const int* in, int* out, int n) {
 }
 
 static double reduce_custom_host_loop(std::vector<double> v) {
-    // Same control flow as sc_integrate1D_gl_gpu
-    int n = (int)v.size(), mt = integration_cuda_config.max_threads_per_block;
-    double *d_result, *d_part, *tmp;
-    cudaMalloc((void**)&d_result, n * sizeof(double));
-    cudaMalloc((void**)&d_part, n * sizeof(double));
-    cudaMemcpy(d_result, v.data(), n * sizeof(double), cudaMemcpyHostToDevice);
-    int remaining = n, threads_needed = n / 2;
-    int blocks = threads_needed / mt + (threads_needed % mt > 0 ? 1 : 0);
-    while (remaining > 1) {
-        reduce_custom<<<blocks, mt>>>(d_result, d_part, remaining);
-        remaining = blocks;
-        threads_needed = remaining / 2;
-        blocks = threads_needed / mt + (threads_needed % mt > 0 ? 1 : 0);
-        if (remaining > 1) { tmp = d_result; d_result = d_part; d_part = tmp; }
-    }
-    double r;
-    cudaMemcpy(&r, d_part, sizeof(double), cudaMemcpyDeviceToHost);
-    cudaFree(d_result); cudaFree(d_part);
+    // The library's own host loop around reduce_custom
+    int n = (int)v.size();
+    double *d_data, *d_scratch;
+    cudaMalloc((void**)&d_data, n * sizeof(double));
+    cudaMalloc((void**)&d_scratch, n * sizeof(double));
+    cudaMemcpy(d_data, v.data(), n * sizeof(double), cudaMemcpyHostToDevice);
+    double r = sc_reduce_sum_gpu(d_data, d_scratch, n);
+    cudaFree(d_data); cudaFree(d_scratch);
     return r;
 }
 
@@ -103,7 +93,7 @@ int main() {
         for (auto& x : v) { x = U(rng); exact += x; }
         char label[96];
         double r1 = reduce_custom_host_loop(v);
-        std::snprintf(label, sizeof label, "reduce_custom   n=%d", sz);
+        std::snprintf(label, sizeof label, "sc_reduce_sum_gpu n=%d", sz);
         check(std::fabs(r1 - (double)exact) <= 1e-12 * std::max(1.0, (double)std::fabs(exact)), label, r1, (double)exact);
         double r2 = reduce_shared_full(v, 256);
         std::snprintf(label, sizeof label, "reduceShared    n=%d (256 threads)", sz);
