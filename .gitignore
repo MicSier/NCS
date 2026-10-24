@@ -11,3 +11,13 @@
 
 \tools\"prepare gauss legendre"\.vs
 \tools\"prepare gauss legendre"\x64
+# Linux builds (nvcc + CPU emulation) and example outputs
+build-cpu/
+*_cpu
+/singlet
+/tryplet
+/coupled
+/integration_benchmark
+singlet.txt
+tryplet.txt
+mixed.txt
